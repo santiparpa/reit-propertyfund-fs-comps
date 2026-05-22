@@ -342,13 +342,16 @@ HTML_TEMPLATE = r"""<!doctype html>
        The clamp on .controls inputs / .ts-symbols-card select uses literal
        px (not rem) because the iOS auto-zoom check is on *computed* px and
        must not drop below 16 regardless of root scaling. */
-    --fs-xxs: 0.70rem;     /* nav-label, optgroup, pill super-small         */
-    --fs-xs:  0.78rem;     /* meta, hints, captions, footnotes              */
-    --fs-sm:  0.85rem;     /* secondary text, sub-titles, panel sub         */
-    --fs-md:  0.92rem;     /* table cells, default body                     */
-    --fs-base:1.00rem;     /* sidebar tabs, brand title, panel head         */
-    --fs-lg:  1.15rem;     /* page-head h2 (~18px at 16px root)             */
-    --fs-input: clamp(16px, 0.95rem, 1rem);  /* form-control floor on every viewport */
+    /* Type scale — uses clamp() with literal px floors so labels and data
+       stay readable on phones even after the root font-size compresses to
+       14px. The ceilings preserve the desktop look at root=16px. */
+    --fs-xxs: clamp(10.5px, 0.70rem, 11.5px);   /* nav-label, optgroup, pill super-small */
+    --fs-xs:  clamp(11.5px, 0.78rem, 12.5px);   /* meta, hints, captions, footnotes      */
+    --fs-sm:  clamp(12.5px, 0.85rem, 13.5px);   /* secondary text, sub-titles, panel sub */
+    --fs-md:  clamp(13px,   0.92rem, 14.5px);   /* table cells, default body             */
+    --fs-base:clamp(14.5px, 1.00rem, 16px);     /* sidebar tabs, brand title, panel head */
+    --fs-lg:  clamp(19px,   1.15rem + 0.4vw, 24px); /* page-head h2 — stays the visual rank above filters at every width */
+    --fs-input: clamp(16px, 0.95rem, 1rem);     /* form-control floor on every viewport (iOS focus-zoom guard) */
 
     /* ----- Fluid spacing scale ----- */
     --sp-1: 0.25rem;
@@ -358,9 +361,9 @@ HTML_TEMPLATE = r"""<!doctype html>
     --sp-5: 1.25rem;
     --sp-6: 1.75rem;
 
-    /* ----- Page padding (fluid: tighter on phones, breathing room on desktop) ----- */
-    --page-pad-x: clamp(0.75rem, 2.5vw, 1.75rem);
-    --page-pad-y: clamp(0.75rem, 2vw, 1.5rem);
+    /* ----- Page padding (fluid: comfortable on phones, breathing room on desktop) ----- */
+    --page-pad-x: clamp(0.875rem, 2.5vw, 1.75rem);
+    --page-pad-y: clamp(0.875rem, 2vw, 1.5rem);
 
     /* ----- Form-control sizing (height clamps so the touch target widens on phones) ----- */
     --ctl-h: clamp(2rem, 1.6rem + 1.2vw, 2.4rem);
@@ -476,23 +479,31 @@ HTML_TEMPLATE = r"""<!doctype html>
   section.tab { display: none; }
   section.tab.active { display: block; }
 
-  /* ============ FY BANNER ============ */
+  /* ============ FY BANNER ============
+     Sized in literal-px clamps (not rem) so the icon and copy never balloon
+     or shrink awkwardly relative to each other regardless of root scaling —
+     this banner is the single most visible bug surface on mobile. */
   #fy-banner {
     display: flex; gap: var(--sp-2); align-items: flex-start;
-    padding: 0.55rem var(--sp-3);
+    padding: clamp(0.5rem, 1.4vw, 0.7rem) clamp(0.7rem, 2vw, 1rem);
     margin-bottom: var(--sp-3);
     background: var(--accent-soft);
     border: 1px solid #dbeafe;
     border-radius: var(--radius);
     color: var(--accent-text);
-    font-size: var(--fs-sm); line-height: 1.5;
+    font-size: clamp(12.5px, 0.85rem, 13.5px);
+    line-height: 1.5;
   }
   #fy-banner .icon {
     flex-shrink: 0;
-    width: 0.95rem; height: 0.95rem;
-    margin-top: 0.1rem;
+    /* Pin icon size in px (not rem) and tie line-height proportionally so it
+       always reads as a small leading bullet, never an oversized glyph. */
+    width: clamp(13px, 0.95rem, 15px);
+    height: clamp(13px, 0.95rem, 15px);
+    margin-top: 0.18em;
     color: var(--accent);
   }
+  #fy-banner > div { min-width: 0; }      /* let the copy wrap naturally */
   #fy-banner b { font-weight: 600; color: #1e3a8a; }
   #fy-banner .syms { color: var(--accent-text); font-variant-numeric: tabular-nums; }
 
@@ -567,9 +578,10 @@ HTML_TEMPLATE = r"""<!doctype html>
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0.25rem;
-    /* 16px floor — option text on iOS Safari uses select's font-size for the
-       focus-zoom check. Below 16px triggers viewport zoom. */
-    font-size: clamp(16px, 0.85rem, 0.9rem);
+    /* 16px on viewports ≤ 900px (iOS focus-zoom guard); 13.5px on desktop
+       where the listbox carries many rows and 16px option text looks chunky.
+       The desktop override lives in the @media (min-width: 901px) block. */
+    font-size: 16px;
     font-variant-numeric: tabular-nums;
     overflow-y: auto;
   }
@@ -986,7 +998,30 @@ HTML_TEMPLATE = r"""<!doctype html>
     .scroll { max-height: none; }
 
     /* page-head wraps title + sub onto separate lines on narrow screens. */
-    .page-head { flex-direction: column; align-items: flex-start; gap: 0.1rem; }
+    .page-head { flex-direction: column; align-items: flex-start; gap: 0.2rem; }
+    .page-head h2 { line-height: 1.2; }
+  }
+
+  /* ============ EXTRA-NARROW (<= 480px) ============
+     Phones in portrait. Drop the filter grid to a single column rather than
+     letting two cramped fields share a 360px row — wider fields are easier
+     to tap and the selected option no longer ellipsis-truncates aggressively.
+     The TS symbols card stays 1-col (already covered above). */
+  @media (max-width: 480px) {
+    .controls { grid-template-columns: 1fr; }
+    .page-head h2 { font-size: clamp(20px, 5.4vw, 22px); }
+    /* The raw-count label uses &nbsp; as its "label text" — a hack to
+       co-align with the input row on desktop. On single-col mobile let the
+       count just flow as a compact summary line under the filters. */
+    #tab-raw .controls > label:last-child { gap: 0; }
+    #raw-count { height: auto; padding: 0; }
+  }
+
+  /* ============ DESKTOP (>= 901px) ============
+     Tighten the TS symbols listbox font (the iOS focus-zoom guard isn't
+     needed here) so 30+ rows fit comfortably without scrolling. */
+  @media (min-width: 901px) {
+    .ts-symbols-card select[multiple] { font-size: 13.5px; }
   }
 </style>
 </head>
