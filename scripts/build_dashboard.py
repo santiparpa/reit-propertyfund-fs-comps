@@ -469,29 +469,52 @@ HTML_TEMPLATE = r"""<!doctype html>
     align-self: stretch;
     margin-bottom: 0;
     padding: 14px;
-    gap: 6px;
+    gap: 10px;
     min-height: 0;
     overflow: hidden;
+  }
+  /* Pair Fund type + Industry as a 2-up filter row so they read as a group
+     attached to the Symbols list below. */
+  .ts-symbols-card .filter-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ts-symbols-card .filter-row label {
+    margin: 0;
   }
   .ts-symbols-card label.full { display: contents; }
   .ts-symbols-card .label-text {
     font-size: 11px; font-weight: 500; color: var(--muted);
+    letter-spacing: 0.01em;
   }
   .ts-symbols-card select[multiple] {
     flex: 1 1 auto;
     width: 100%;
     min-width: 0;
-    min-height: 200px;     /* baseline so it never collapses below this */
-    height: auto;
+    min-height: 260px;     /* baseline so it never collapses below this */
+    height: 100%;
     box-sizing: border-box;
+    background: var(--surface);
     background-image: none;
-    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 4px;
     font-variant-numeric: tabular-nums;
+    overflow-y: auto;
+  }
+  .ts-symbols-card select[multiple]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+    outline: none;
   }
   .ts-symbols-card select[multiple] option {
-    padding: 4px 8px;
-    font-size: 13px;
+    padding: 5px 8px;
+    font-size: 12.5px;
     border-radius: 3px;
+    line-height: 1.45;
   }
   .ts-symbols-card .hint {
     font-size: 11px; color: var(--muted-2); font-weight: 400;
@@ -934,12 +957,14 @@ HTML_TEMPLATE = r"""<!doctype html>
   </div>
   <div class="ts-layout">
     <div class="controls ts-symbols-card">
-      <label>Fund type
-        <select id="ts-type"><option value="">(All)</option></select>
-      </label>
-      <label>Industry
-        <select id="ts-industry"><option value="">(All)</option></select>
-      </label>
+      <div class="filter-row">
+        <label>Fund type
+          <select id="ts-type"><option value="">(All)</option></select>
+        </label>
+        <label>Industry
+          <select id="ts-industry"><option value="">(All)</option></select>
+        </label>
+      </div>
       <label class="full">
         <span class="label-text">Symbols</span>
         <select id="ts-symbols" multiple></select>
@@ -1141,7 +1166,7 @@ function fiscalOf(sym, period){
 const fmt = (v) => v == null || isNaN(v) ? "" :
   Math.abs(v) >= 1e6 ? (v/1e3).toLocaleString(undefined,{maximumFractionDigits:0})+" M"
   : v.toLocaleString(undefined,{maximumFractionDigits:0});
-const fmtFull = (v) => v == null || isNaN(v) ? "—" : v.toLocaleString(undefined,{maximumFractionDigits:2});
+const fmtFull = (v) => v == null || isNaN(v) ? "—" : Math.round(v).toLocaleString(undefined,{maximumFractionDigits:0});
 const pct = (v) => v == null || !isFinite(v) ? "—" :
   (v >= 0 ? "+" : "") + (v*100).toFixed(1) + "%";
 const periodSort = (a,b) => a.localeCompare(b); // 2023Q1 sorts naturally
