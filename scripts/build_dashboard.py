@@ -358,6 +358,7 @@ HTML_TEMPLATE = r"""<!doctype html>
   /* Mobile-only topbar + drawer overlay — hidden on desktop */
   .topbar { display: none; }
   .sidebar-overlay { display: none; }
+  .sidebar-close { display: none; }
   .sidebar {
     background: var(--surface-2);
     border-right: 1px solid var(--border);
@@ -849,15 +850,42 @@ HTML_TEMPLATE = r"""<!doctype html>
     .sidebar {
       position: fixed;
       top: 0; left: 0; bottom: 0;
-      width: 260px; max-width: 82vw;
-      height: 100vh;
+      width: 280px; max-width: 84vw;
+      /* 100dvh accounts for iOS Safari's URL-bar dynamic viewport so the
+         drawer reliably reaches the bottom of the screen. min-height keeps
+         the white surface filling the visible area even when content is
+         short — without it, the drawer ended at "Generated" and the dimmed
+         page showed through beneath it. */
+      height: 100dvh;
+      min-height: 100vh;
       z-index: 200;
+      background: var(--surface);              /* solid white, not the desktop's tinted #f7f7f8 */
+      border-right: none;                       /* shadow alone separates the drawer */
+      border-radius: 0 14px 14px 0;
+      box-shadow: none;                         /* off-screen by default has no shadow */
       transform: translateX(-100%);
-      transition: transform 220ms ease;
-      border-right: 1px solid var(--border);
+      transition: transform 220ms ease, box-shadow 220ms ease;
       overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
     }
-    .sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(16,24,40,.12); }
+    .sidebar.open {
+      transform: translateX(0);
+      box-shadow: 8px 0 32px rgba(16,24,40,.18);
+    }
+    .sidebar .brand {
+      padding: 4px 8px 14px;
+      border-bottom: 1px solid var(--border);   /* divider under the title so it reads as a header */
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .sidebar-close {
+      width: 30px; height: 30px;
+      display: flex; align-items: center; justify-content: center;
+      background: transparent; border: none; border-radius: 8px;
+      color: var(--muted); cursor: pointer; padding: 0;
+      font-size: 18px; line-height: 1;
+    }
+    .sidebar-close:hover { background: var(--surface-2); color: var(--text); }
+    .sidebar-close:active { background: rgba(17,24,39,.06); }
     .sidebar-overlay {
       display: block;
       position: fixed; inset: 0;
@@ -960,8 +988,11 @@ HTML_TEMPLATE = r"""<!doctype html>
   <div class="sidebar-overlay" id="sidebar-overlay" aria-hidden="true"></div>
   <aside class="sidebar">
     <div class="brand">
-      <div class="title">REIT Analytics</div>
-      <div class="subtitle">Thai market &middot; quarterly</div>
+      <div>
+        <div class="title">REIT Analytics</div>
+        <div class="subtitle">Thai market &middot; quarterly</div>
+      </div>
+      <button class="sidebar-close" id="sidebar-close" aria-label="Close navigation">&times;</button>
     </div>
     <div class="nav-list">
       <div class="nav-label">Views</div>
@@ -1374,6 +1405,7 @@ const Sidebar = (function(){
   const sidebar = document.querySelector('.sidebar');
   const overlay = document.getElementById('sidebar-overlay');
   const hamburger = document.getElementById('hamburger');
+  const closeBtn = document.getElementById('sidebar-close');
   function open(){
     sidebar.classList.add('open');
     overlay.classList.add('open');
@@ -1389,6 +1421,7 @@ const Sidebar = (function(){
   hamburger.addEventListener('click', () =>
     sidebar.classList.contains('open') ? close() : open());
   overlay.addEventListener('click', close);
+  closeBtn.addEventListener('click', close);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
   return { open, close };
 })();
