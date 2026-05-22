@@ -346,6 +346,10 @@ HTML_TEMPLATE = r"""<!doctype html>
     font-feature-settings: 'cv11', 'ss01', 'ss03';
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Stop iOS Safari from auto-enlarging long text blocks (e.g. the FY banner)
+       inside narrow containers — we control sizing via the responsive rules. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
   ::selection { background: #dbeafe; }
 
@@ -889,7 +893,8 @@ HTML_TEMPLATE = r"""<!doctype html>
     .page-head { flex-direction: column; align-items: flex-start; gap: 2px; margin-bottom: 8px; }
     .page-head h2 { font-size: 16px; }
     .page-head .page-sub { font-size: 11.5px; }
-    #fy-banner { font-size: 11.5px; padding: 8px 10px; margin-bottom: 8px; }
+    #fy-banner { font-size: 10.5px; line-height: 1.4; padding: 7px 9px; gap: 7px; margin-bottom: 8px; }
+    #fy-banner .icon { width: 12px; height: 12px; }
 
     /* Filter bar: 2-column on phones so 6-8 filters don't stack into a 300px+
        tower above the chart/table. TS symbols card opts out — it has its own
