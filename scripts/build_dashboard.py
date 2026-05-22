@@ -314,6 +314,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root {
+    /* ----- Colour & shape tokens (don't touch — referenced everywhere) ----- */
     --bg: #fafafa;
     --surface: #ffffff;
     --surface-2: #f7f7f8;
@@ -334,27 +335,70 @@ HTML_TEMPLATE = r"""<!doctype html>
     --shadow-sm: 0 1px 2px rgba(16,24,40,.04);
     --radius: 6px;
     --radius-lg: 8px;
+
+    /* ----- Fluid type scale -----
+       Sized in rem so they auto-track the root font-size set on <html>, with
+       a 16px floor on form-control text to defeat iOS Safari focus-zoom.
+       The clamp on .controls inputs / .ts-symbols-card select uses literal
+       px (not rem) because the iOS auto-zoom check is on *computed* px and
+       must not drop below 16 regardless of root scaling. */
+    --fs-xxs: 0.70rem;     /* nav-label, optgroup, pill super-small         */
+    --fs-xs:  0.78rem;     /* meta, hints, captions, footnotes              */
+    --fs-sm:  0.85rem;     /* secondary text, sub-titles, panel sub         */
+    --fs-md:  0.92rem;     /* table cells, default body                     */
+    --fs-base:1.00rem;     /* sidebar tabs, brand title, panel head         */
+    --fs-lg:  1.15rem;     /* page-head h2 (~18px at 16px root)             */
+    --fs-input: clamp(16px, 0.95rem, 1rem);  /* form-control floor on every viewport */
+
+    /* ----- Fluid spacing scale ----- */
+    --sp-1: 0.25rem;
+    --sp-2: 0.5rem;
+    --sp-3: 0.75rem;
+    --sp-4: 1rem;
+    --sp-5: 1.25rem;
+    --sp-6: 1.75rem;
+
+    /* ----- Page padding (fluid: tighter on phones, breathing room on desktop) ----- */
+    --page-pad-x: clamp(0.75rem, 2.5vw, 1.75rem);
+    --page-pad-y: clamp(0.75rem, 2vw, 1.5rem);
+
+    /* ----- Form-control sizing (height clamps so the touch target widens on phones) ----- */
+    --ctl-h: clamp(2rem, 1.6rem + 1.2vw, 2.4rem);
+
+    /* ----- Chart heights — fluid between mobile and desktop ----- */
+    --chart-h:      clamp(280px, 38vh, 420px);
+    --chart-h-tall: clamp(440px, 56vh, 620px);
   }
   * { box-sizing: border-box; }
+  html {
+    /* Fluid root: ~14px on a 320px phone, ~16px on 1100px+ desktops. Every
+       rem-based size downstream tracks this. */
+    font-size: clamp(14px, 0.55vw + 12.5px, 16px);
+  }
   html, body {
     margin: 0;
     background: var(--bg);
     color: var(--text);
     font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    font-size: 13px;
+    font-size: var(--fs-md);
     line-height: 1.45;
     font-feature-settings: 'cv11', 'ss01', 'ss03';
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     /* Stop iOS Safari from auto-enlarging long text blocks (e.g. the FY banner)
-       inside narrow containers — we control sizing via the responsive rules. */
+       inside narrow containers — we control sizing via the fluid scale. */
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
   }
   ::selection { background: #dbeafe; }
 
   /* ============ LAYOUT: sidebar + main ============ */
-  .app { display: grid; grid-template-columns: 236px 1fr; min-height: 100vh; }
+  .app {
+    display: grid;
+    grid-template-columns: clamp(13rem, 17vw, 16rem) 1fr;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
   /* Mobile-only topbar + drawer overlay — hidden on desktop */
   .topbar { display: none; }
   .sidebar-overlay { display: none; }
@@ -362,28 +406,30 @@ HTML_TEMPLATE = r"""<!doctype html>
   .sidebar {
     background: var(--surface-2);
     border-right: 1px solid var(--border);
-    padding: 20px 14px;
-    display: flex; flex-direction: column; gap: 18px;
-    position: sticky; top: 0; height: 100vh;
+    padding: var(--sp-5) var(--sp-3);
+    display: flex; flex-direction: column; gap: var(--sp-4);
+    position: sticky; top: 0;
+    height: 100vh;
+    height: 100dvh;
   }
-  .brand { padding: 2px 8px 6px; }
-  .brand .title { font-size: 14px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
-  .brand .subtitle { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .brand { padding: 0.15rem var(--sp-2) var(--sp-2); }
+  .brand .title { font-size: var(--fs-base); font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
+  .brand .subtitle { font-size: var(--fs-xs); color: var(--muted); margin-top: 0.15rem; }
 
-  .nav-list { display: flex; flex-direction: column; gap: 2px; }
+  .nav-list { display: flex; flex-direction: column; gap: 0.15rem; }
   .nav-label {
-    font-size: 10px; font-weight: 600; color: var(--muted-2);
+    font-size: var(--fs-xxs); font-weight: 600; color: var(--muted-2);
     text-transform: uppercase; letter-spacing: 0.06em;
-    padding: 0 8px 6px;
+    padding: 0 var(--sp-2) var(--sp-2);
   }
-  #tabs { display: flex; flex-direction: column; gap: 1px; }
+  #tabs { display: flex; flex-direction: column; gap: 0.0625rem; }
   #tabs button {
     background: transparent; border: none; cursor: pointer;
-    text-align: left; padding: 7px 10px;
-    font: inherit; font-size: 13px; font-weight: 500;
+    text-align: left; padding: 0.45rem var(--sp-3);
+    font: inherit; font-size: var(--fs-md); font-weight: 500;
     color: var(--text-2);
-    border-radius: 6px;
-    display: flex; align-items: center; gap: 9px;
+    border-radius: var(--radius);
+    display: flex; align-items: center; gap: 0.6rem;
     transition: background 80ms ease, color 80ms ease;
   }
   #tabs button:hover:not(.active) { background: rgba(17,24,39,.04); color: var(--text); }
@@ -393,7 +439,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     box-shadow: inset 0 0 0 1px var(--border), var(--shadow-sm);
   }
   #tabs button .dot {
-    width: 6px; height: 6px; border-radius: 50%;
+    width: 0.4rem; height: 0.4rem; border-radius: 50%;
     background: var(--muted-2);
     flex-shrink: 0;
   }
@@ -401,46 +447,50 @@ HTML_TEMPLATE = r"""<!doctype html>
 
   .sidebar-meta {
     margin-top: auto;
-    font-size: 11px; color: var(--muted); line-height: 1.5;
-    padding: 10px 8px; border-top: 1px solid var(--border);
+    font-size: var(--fs-xs); color: var(--muted); line-height: 1.5;
+    padding: var(--sp-3) var(--sp-2); border-top: 1px solid var(--border);
   }
-  .sidebar-meta .row { display: flex; justify-content: space-between; gap: 8px; }
-  .sidebar-meta .row + .row { margin-top: 3px; }
+  .sidebar-meta .row { display: flex; justify-content: space-between; gap: var(--sp-2); }
+  .sidebar-meta .row + .row { margin-top: 0.2rem; }
   .sidebar-meta .k { color: var(--muted-2); }
   .sidebar-meta .v { color: var(--text-2); font-variant-numeric: tabular-nums; }
 
   /* ============ MAIN CONTENT ============ */
   main {
-    padding: 22px 28px 40px;
+    padding: var(--page-pad-y) var(--page-pad-x) calc(var(--page-pad-y) * 1.8);
     max-width: 1600px;
     width: 100%;
   }
   .page-head {
     display: flex; align-items: baseline; justify-content: space-between;
-    gap: 16px; margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-4);
+    margin-bottom: var(--sp-4);
   }
   .page-head h2 {
-    margin: 0; font-size: 18px; font-weight: 600;
+    margin: 0; font-size: var(--fs-lg); font-weight: 600;
     color: var(--text); letter-spacing: -0.01em;
   }
-  .page-head .page-sub { font-size: 12px; color: var(--muted); }
+  .page-head .page-sub { font-size: var(--fs-sm); color: var(--muted); }
 
   section.tab { display: none; }
   section.tab.active { display: block; }
 
   /* ============ FY BANNER ============ */
   #fy-banner {
-    display: flex; gap: 10px; align-items: flex-start;
-    padding: 9px 12px; margin-bottom: 14px;
+    display: flex; gap: var(--sp-2); align-items: flex-start;
+    padding: 0.55rem var(--sp-3);
+    margin-bottom: var(--sp-3);
     background: var(--accent-soft);
     border: 1px solid #dbeafe;
     border-radius: var(--radius);
     color: var(--accent-text);
-    font-size: 12px; line-height: 1.5;
+    font-size: var(--fs-sm); line-height: 1.5;
   }
   #fy-banner .icon {
-    flex-shrink: 0; width: 14px; height: 14px;
-    margin-top: 1px;
+    flex-shrink: 0;
+    width: 0.95rem; height: 0.95rem;
+    margin-top: 0.1rem;
     color: var(--accent);
   }
   #fy-banner b { font-weight: 600; color: #1e3a8a; }
@@ -449,19 +499,20 @@ HTML_TEMPLATE = r"""<!doctype html>
   /* ============ CONTROLS / FILTER BAR ============ */
   .controls {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 10px 14px; align-items: end;
-    padding: 12px 14px;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: var(--sp-2) var(--sp-3);
+    align-items: end;
+    padding: var(--sp-3) var(--sp-3);
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    margin-bottom: 14px;
+    margin-bottom: var(--sp-3);
   }
   /* TS tab: 2-column layout. Left = symbols card (full height). Right = options + chart + summary stacked. */
   .ts-layout {
     display: grid;
-    grid-template-columns: 260px 1fr;
-    gap: 14px;
+    grid-template-columns: clamp(15rem, 22vw, 18rem) 1fr;
+    gap: var(--sp-3);
     align-items: stretch;
   }
   /* Card itself is a flex column so the select can grow with flex: 1.
@@ -474,8 +525,8 @@ HTML_TEMPLATE = r"""<!doctype html>
     align-items: stretch;   /* override .controls' align-items: end, which would right-align the label & hint in this flex-column layout */
     align-self: stretch;
     margin-bottom: 0;
-    padding: 14px;
-    gap: 10px;
+    padding: var(--sp-3);
+    gap: var(--sp-2);
     min-height: 0;
     overflow: hidden;
   }
@@ -486,8 +537,8 @@ HTML_TEMPLATE = r"""<!doctype html>
   .ts-symbols-card .filter-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    padding-bottom: 10px;
+    gap: var(--sp-2);
+    padding-bottom: var(--sp-2);
     border-bottom: 1px solid var(--border);
   }
   .ts-symbols-card .filter-row label {
@@ -499,21 +550,26 @@ HTML_TEMPLATE = r"""<!doctype html>
   }
   .ts-symbols-card label.full { display: contents; }
   .ts-symbols-card .label-text {
-    font-size: 11px; font-weight: 500; color: var(--muted);
+    font-size: var(--fs-xs); font-weight: 500; color: var(--muted);
     letter-spacing: 0.01em;
   }
   .ts-symbols-card select[multiple] {
     flex: 1 1 auto;
     width: 100%;
     min-width: 0;
-    min-height: 260px;     /* baseline so it never collapses below this */
+    /* Fluid min-height: scales between phones (~140px) and desktops (~260px)
+       without per-breakpoint overrides. */
+    min-height: clamp(140px, 28vh, 260px);
     height: 100%;
     box-sizing: border-box;
     background: var(--surface);
     background-image: none;
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 4px;
+    padding: 0.25rem;
+    /* 16px floor — option text on iOS Safari uses select's font-size for the
+       focus-zoom check. Below 16px triggers viewport zoom. */
+    font-size: clamp(16px, 0.85rem, 0.9rem);
     font-variant-numeric: tabular-nums;
     overflow-y: auto;
   }
@@ -523,27 +579,23 @@ HTML_TEMPLATE = r"""<!doctype html>
     outline: none;
   }
   .ts-symbols-card select[multiple] option {
-    padding: 5px 8px;
-    font-size: 12.5px;
+    padding: 0.3rem var(--sp-2);
     border-radius: 3px;
     line-height: 1.45;
   }
   .ts-symbols-card .hint {
-    font-size: 11px; color: var(--muted-2); font-weight: 400;
-    margin-top: 2px;
+    font-size: var(--fs-xs); color: var(--muted-2); font-weight: 400;
+    margin-top: 0.15rem;
   }
   .ts-right {
-    display: flex; flex-direction: column; gap: 14px;
+    display: flex; flex-direction: column; gap: var(--sp-3);
     min-width: 0;       /* allow chart canvas to shrink */
   }
   .ts-right .controls,
   .ts-right .panel { margin-bottom: 0; }
-  @media (max-width: 980px) {
-    .ts-layout { grid-template-columns: 1fr; }
-  }
   .controls label {
-    display: flex; flex-direction: column; gap: 5px;
-    font-size: 11px; font-weight: 500;
+    display: flex; flex-direction: column; gap: 0.3rem;
+    font-size: var(--fs-xs); font-weight: 500;
     color: var(--muted);
     min-width: 0;          /* allow children to shrink inside grid cells */
   }
@@ -553,10 +605,13 @@ HTML_TEMPLATE = r"""<!doctype html>
     color: var(--text);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 0 10px;
-    height: 30px;
+    padding: 0 var(--sp-3);
+    height: var(--ctl-h);
     font: inherit;
-    font-size: 13px;
+    /* 16px floor on every viewport — iOS Safari auto-zooms the viewport on
+       focus if a form control's computed font-size < 16px. Use literal px
+       in the floor so it survives any root-font scaling. */
+    font-size: var(--fs-input);
     width: 100%;            /* fill the grid cell instead of overflowing it */
     min-width: 0;           /* allow shrinking when cell is narrow */
     max-width: 100%;
@@ -569,24 +624,24 @@ HTML_TEMPLATE = r"""<!doctype html>
   .controls select {
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M3 4.5l3 3 3-3'/></svg>");
     background-repeat: no-repeat;
-    background-position: right 8px center;
-    background-size: 12px;
-    padding-right: 28px;
+    background-position: right 0.5rem center;
+    background-size: 0.75rem;
+    padding-right: 1.75rem;
   }
   .controls select[multiple] {
     background-image: none;
-    padding: 4px 6px;
+    padding: 0.25rem 0.4rem;
     height: auto;
-    min-height: 92px;
+    min-height: clamp(5rem, 12vh, 6.25rem);
     font-variant-numeric: tabular-nums;
   }
   .controls select[multiple] option {
-    padding: 3px 6px;
+    padding: 0.2rem 0.4rem;
     border-radius: 3px;
-    font-size: 12px;
+    font-size: var(--fs-sm);
   }
   .controls select optgroup {
-    font-size: 10px;
+    font-size: var(--fs-xxs);
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -603,8 +658,8 @@ HTML_TEMPLATE = r"""<!doctype html>
   /* Category pill in raw-data table */
   .cat-pill {
     display: inline-block;
-    padding: 1px 7px;
-    font-size: 10px;
+    padding: 0.05rem 0.45rem;
+    font-size: var(--fs-xxs);
     font-weight: 500;
     letter-spacing: 0.02em;
     border-radius: 10px;
@@ -620,9 +675,9 @@ HTML_TEMPLATE = r"""<!doctype html>
 
   /* Industry + Type pills — Stripe-inspired soft palette */
   .ind-pill, .type-pill {
-    display: inline-flex; align-items: center; gap: 5px;
-    padding: 1px 8px;
-    font-size: 10.5px;
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    padding: 0.05rem 0.5rem;
+    font-size: var(--fs-xxs);
     font-weight: 500;
     letter-spacing: 0.01em;
     border-radius: 10px;
@@ -631,7 +686,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     white-space: nowrap;
   }
   .ind-pill::before {
-    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    content: ""; width: 0.4rem; height: 0.4rem; border-radius: 50%;
     background: currentColor; opacity: 0.85; flex-shrink: 0;
   }
   /* Industry palette (soft bg + dark text, indicator dot inherits text) */
@@ -668,30 +723,30 @@ HTML_TEMPLATE = r"""<!doctype html>
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    padding: 14px 16px;
+    padding: var(--sp-3) var(--sp-4);
   }
-  .panel + .panel { margin-top: 14px; }
+  .panel + .panel { margin-top: var(--sp-3); }
   .panel-head {
     display: flex; align-items: baseline; justify-content: space-between;
-    gap: 12px; margin-bottom: 10px;
+    gap: var(--sp-3); margin-bottom: var(--sp-3);
   }
   .panel-head h3 {
-    margin: 0; font-size: 13px; font-weight: 600; color: var(--text);
+    margin: 0; font-size: var(--fs-md); font-weight: 600; color: var(--text);
     letter-spacing: -0.005em;
   }
-  .panel-head .sub { font-size: 12px; color: var(--muted); }
+  .panel-head .sub { font-size: var(--fs-sm); color: var(--muted); }
 
-  .chart-wrap { position: relative; height: 420px; }
-  .chart-wrap.tall { height: 620px; }
+  .chart-wrap { position: relative; height: var(--chart-h); }
+  .chart-wrap.tall { height: var(--chart-h-tall); }
 
   /* ============ TABLES ============ */
   table.data {
     width: 100%; border-collapse: collapse;
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     font-variant-numeric: tabular-nums;
   }
   table.data th, table.data td {
-    padding: 7px 10px;
+    padding: 0.4rem 0.6rem;
     border-bottom: 1px solid var(--border);
     text-align: right;
     white-space: nowrap;
@@ -701,15 +756,15 @@ HTML_TEMPLATE = r"""<!doctype html>
     background: var(--surface);
     position: sticky; top: 0; z-index: 1;
     cursor: pointer; user-select: none;
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
     font-weight: 500;
     color: var(--muted);
     border-bottom: 1px solid var(--border-strong);
   }
   table.data thead th:hover { color: var(--text); }
   table.data th.sort-asc, table.data th.sort-desc { color: var(--accent); }
-  table.data th.sort-asc::after  { content: " ▲"; font-size: 9px; color: var(--accent); }
-  table.data th.sort-desc::after { content: " ▼"; font-size: 9px; color: var(--accent); }
+  table.data th.sort-asc::after  { content: " ▲"; font-size: 0.6rem; color: var(--accent); }
+  table.data th.sort-desc::after { content: " ▼"; font-size: 0.6rem; color: var(--accent); }
   table.data td.sym, table.data th.sym {
     text-align: left; font-weight: 500; color: var(--text);
   }
@@ -720,11 +775,11 @@ HTML_TEMPLATE = r"""<!doctype html>
   /* ============ HEATMAP TABLE ============ */
   table.heat {
     width: 100%; border-collapse: separate; border-spacing: 0;
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
     font-variant-numeric: tabular-nums;
   }
   table.heat th, table.heat td {
-    padding: 5px 8px;
+    padding: 0.3rem 0.5rem;
     text-align: right;
     border-right: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
@@ -735,15 +790,15 @@ HTML_TEMPLATE = r"""<!doctype html>
     background: var(--surface);
     color: var(--muted);
     font-weight: 500;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     position: sticky; top: 0; z-index: 3;
     border-bottom: 1px solid var(--border-strong);
     cursor: pointer; user-select: none;
   }
   table.heat thead th:hover { color: var(--text); }
   table.heat th.sort-asc, table.heat th.sort-desc { color: var(--accent); }
-  table.heat th.sort-asc::after  { content: " ▲"; font-size: 9px; color: var(--accent); }
-  table.heat th.sort-desc::after { content: " ▼"; font-size: 9px; color: var(--accent); }
+  table.heat th.sort-asc::after  { content: " ▲"; font-size: 0.6rem; color: var(--accent); }
+  table.heat th.sort-desc::after { content: " ▼"; font-size: 0.6rem; color: var(--accent); }
   table.heat th.sym {
     text-align: left;
     position: sticky; left: 0; z-index: 4;
@@ -769,40 +824,42 @@ HTML_TEMPLATE = r"""<!doctype html>
   /* ============ MISC ============ */
   .pos { color: var(--pos); }
   .neg { color: var(--neg); }
-  .scroll { overflow: auto; max-height: 72vh; }
+  /* dvh on .scroll so the in-panel scroll region matches the actually-visible
+     viewport on iOS Safari, not the URL-bar-inclusive vh. */
+  .scroll { overflow: auto; max-height: 72vh; max-height: 72dvh; }
   .h-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .scroll table.data, .scroll table.heat { font-variant-numeric: tabular-nums; }
   /* When a table is inside a .scroll wrapper, drop its own borders */
   .scroll table.data thead th { border-top: none; }
   /* Flush the scroll-table inside a panel to the panel edges */
   .panel.flush { padding: 0; }
-  .panel.flush > .scroll { border-radius: var(--radius-lg); max-height: 72vh; }
+  .panel.flush > .scroll { border-radius: var(--radius-lg); max-height: 72vh; max-height: 72dvh; }
   .panel.flush table.data thead th:first-child,
   .panel.flush table.heat thead th:first-child,
   .panel.flush table.data tbody td:first-child,
-  .panel.flush table.heat tbody td:first-child { padding-left: 16px; }
+  .panel.flush table.heat tbody td:first-child { padding-left: var(--sp-4); }
   .panel.flush table.data thead th:last-child,
-  .panel.flush table.data tbody td:last-child { padding-right: 16px; }
-  .panel.flush .footnote { padding: 10px 16px 12px; margin: 0; border-top: 1px solid var(--border); }
+  .panel.flush table.data tbody td:last-child { padding-right: var(--sp-4); }
+  .panel.flush .footnote { padding: var(--sp-2) var(--sp-4) var(--sp-3); margin: 0; border-top: 1px solid var(--border); }
 
   .footnote {
-    font-size: 11.5px; color: var(--muted);
-    margin-top: 10px; line-height: 1.5;
+    font-size: var(--fs-xs); color: var(--muted);
+    margin-top: var(--sp-3); line-height: 1.5;
   }
   .footnote b { color: var(--text-2); font-weight: 600; }
   .row-count {
-    font-size: 11.5px; color: var(--muted);
+    font-size: var(--fs-xs); color: var(--muted);
     font-variant-numeric: tabular-nums;
-    height: 30px; display: flex; align-items: center;
+    height: var(--ctl-h); display: flex; align-items: center;
   }
   .fp-note {
-    color: var(--muted); font-size: 11px;
-    margin-left: 6px; font-weight: 400;
+    color: var(--muted); font-size: var(--fs-xs);
+    margin-left: 0.4rem; font-weight: 400;
     font-variant-numeric: tabular-nums;
   }
   .empty-state {
-    color: var(--muted); font-size: 12px;
-    padding: 4px 0; font-style: normal;
+    color: var(--muted); font-size: var(--fs-sm);
+    padding: 0.25rem 0; font-style: normal;
   }
 
   /* Scrollbar polish (webkit) */
@@ -814,50 +871,56 @@ HTML_TEMPLATE = r"""<!doctype html>
   ::-webkit-scrollbar-thumb:hover { background: #9ca3af; background-clip: padding-box; border: 2px solid transparent; }
   ::-webkit-scrollbar-track { background: transparent; }
 
-  /* ============ RESPONSIVE / MOBILE ============ */
-  /* Tablet/phone: sidebar becomes an off-canvas drawer, opened via hamburger */
+  /* ============ RESPONSIVE / MOBILE ============
+     One breakpoint, by intent: <900px collapses the sidebar into a drawer
+     and stacks the TS two-column layout. Everything else (typography, paddings,
+     gaps, chart heights, control heights) scales fluidly via clamp() and rem,
+     so there's no need for nested 640px / 380px patches. */
   @media (max-width: 900px) {
     .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
     .topbar {
-      display: flex; align-items: center; gap: 12px;
+      display: flex; align-items: center; gap: var(--sp-3);
       grid-column: 1; grid-row: 1;
       position: sticky; top: 0; z-index: 100;
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 10px 14px;
+      padding: var(--sp-2) var(--sp-3);
     }
     .topbar-title {
-      font-size: 14px; font-weight: 600;
+      font-size: var(--fs-base); font-weight: 600;
       color: var(--text); letter-spacing: -0.01em;
     }
     .hamburger {
-      width: 34px; height: 34px;
+      width: 2.2rem; height: 2.2rem;
       background: transparent;
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: var(--radius);
       cursor: pointer; padding: 0;
       display: flex; flex-direction: column;
       justify-content: center; align-items: center;
-      gap: 4px;
+      gap: 0.25rem;
       transition: background 80ms ease, border-color 80ms ease;
     }
     .hamburger:hover { background: var(--surface-2); border-color: var(--border-strong); }
     .hamburger:active { background: rgba(17,24,39,.06); }
     .hamburger span {
-      display: block; width: 16px; height: 1.6px;
+      display: block; width: 1rem; height: 1.6px;
       background: var(--text-2); border-radius: 1px;
     }
     .sidebar {
       position: fixed;
       top: 0; left: 0; bottom: 0;
-      width: 280px; max-width: 84vw;
+      width: clamp(15rem, 78vw, 20rem);
+      max-width: 84vw;
       /* 100dvh accounts for iOS Safari's URL-bar dynamic viewport so the
          drawer reliably reaches the bottom of the screen. min-height keeps
          the white surface filling the visible area even when content is
          short — without it, the drawer ended at "Generated" and the dimmed
          page showed through beneath it. */
+      height: 100vh;
       height: 100dvh;
       min-height: 100vh;
+      min-height: 100dvh;
       z-index: 200;
       background: var(--surface);              /* solid white, not the desktop's tinted #f7f7f8 */
       border-right: none;                       /* shadow alone separates the drawer */
@@ -873,16 +936,16 @@ HTML_TEMPLATE = r"""<!doctype html>
       box-shadow: 8px 0 32px rgba(16,24,40,.18);
     }
     .sidebar .brand {
-      padding: 4px 8px 14px;
+      padding: 0.25rem var(--sp-2) var(--sp-3);
       border-bottom: 1px solid var(--border);   /* divider under the title so it reads as a header */
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3);
     }
     .sidebar-close {
-      width: 30px; height: 30px;
+      width: 2rem; height: 2rem;
       display: flex; align-items: center; justify-content: center;
-      background: transparent; border: none; border-radius: 8px;
+      background: transparent; border: none; border-radius: var(--radius-lg);
       color: var(--muted); cursor: pointer; padding: 0;
-      font-size: 18px; line-height: 1;
+      font-size: 1.15rem; line-height: 1;
     }
     .sidebar-close:hover { background: var(--surface-2); color: var(--text); }
     .sidebar-close:active { background: rgba(17,24,39,.06); }
@@ -898,8 +961,16 @@ HTML_TEMPLATE = r"""<!doctype html>
       background: rgba(15,23,42,.45);
       pointer-events: auto;
     }
-    main { padding: 16px; max-width: 100%; grid-column: 1; grid-row: 2; }
+    main { max-width: 100%; grid-column: 1; grid-row: 2; }
+
+    /* Layout reflows — the only truly per-breakpoint rules left. */
     .ts-layout { grid-template-columns: 1fr; }
+    /* Filter bar: 2-column on phones so 6-8 filters don't stack into a tall
+       tower above the chart/table. TS symbols card opts out — it has its own
+       2-up filter row inside. */
+    .controls { grid-template-columns: 1fr 1fr; }
+    .ts-symbols-card.controls { grid-template-columns: 1fr; }
+
     /* In single-column layout the symbols card must not flex-stretch — let the
        <select multiple> take its natural height (compact button on iOS Safari,
        a fixed-size listbox elsewhere) instead of inflating to fill the row. */
@@ -907,73 +978,15 @@ HTML_TEMPLATE = r"""<!doctype html>
     .ts-symbols-card select[multiple] {
       flex: 0 0 auto;
       height: auto;
-      min-height: 140px;
     }
-    .chart-wrap { height: 360px; }
-    .chart-wrap.tall { height: 520px; }
-  }
 
-  /* Phone: stack controls vertically, shrink everything */
-  @media (max-width: 640px) {
-    /* Type & page chrome */
-    html, body { font-size: 12.5px; }
-    main { padding: 10px 10px 28px; }
-    .page-head { flex-direction: column; align-items: flex-start; gap: 2px; margin-bottom: 8px; }
-    .page-head h2 { font-size: 16px; }
-    .page-head .page-sub { font-size: 11.5px; }
-    #fy-banner { font-size: 10.5px; line-height: 1.4; padding: 7px 9px; gap: 7px; margin-bottom: 8px; }
-    #fy-banner .icon { width: 12px; height: 12px; }
-
-    /* Filter bar: 2-column on phones so 6-8 filters don't stack into a 300px+
-       tower above the chart/table. TS symbols card opts out — it has its own
-       2-up filter row inside. */
-    .controls {
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      padding: 10px 12px;
-      margin-bottom: 8px;
-    }
-    .ts-symbols-card.controls { grid-template-columns: 1fr; }
-    .controls label { font-size: 11px; }
-    /* iOS Safari auto-zooms the viewport when a focused input has font-size
-       < 16px, and doesn't always zoom back out — which is why the sidebar
-       and other content look randomly enlarged on subsequent visits.
-       Keep the visual size compact by widening the touch target slightly
-       and pinning the text to 16px to defeat the auto-zoom. */
-    .controls select, .controls input[type=text] { height: 36px; font-size: 16px; }
-
-    /* Panels & data containers. Drop max-height on .scroll wrappers so tables
-       flow with page-scroll instead of trapping the user inside a 60vh window. */
-    .panel { padding: 10px 12px; }
-    .panel + .panel { margin-top: 8px; }
+    /* Drop max-height on .scroll wrappers so tables flow with page-scroll
+       instead of trapping the user inside a 60vh window on phones. */
     .panel.flush > .scroll,
     .scroll { max-height: none; }
-    .chart-wrap { height: 280px; }
-    .chart-wrap.tall { height: 440px; }
 
-    /* Tables: shrink horizontal padding so more fits per row */
-    table.data th, table.data td { padding: 6px 6px; font-size: 11.5px; }
-    table.heat th, table.heat td { padding: 4px 6px; font-size: 11px; }
-    .panel.flush table.data thead th:first-child,
-    .panel.flush table.heat thead th:first-child,
-    .panel.flush table.data tbody td:first-child,
-    .panel.flush table.heat tbody td:first-child { padding-left: 10px; }
-    .panel.flush table.data thead th:last-child,
-    .panel.flush table.data tbody td:last-child { padding-right: 10px; }
-
-    /* TS symbols card: trim padding so symbols list isn't tiny */
-    .ts-layout > .ts-symbols-card { padding: 10px; gap: 6px; }
-    .ts-symbols-card select[multiple] { min-height: 120px; }
-
-    /* Sidebar brand: hide the subtitle on phones to save room */
-    .sidebar .brand .subtitle { display: none; }
-  }
-
-  /* Very narrow phones */
-  @media (max-width: 380px) {
-    #tabs button { padding: 6px 8px; font-size: 11.5px; }
-    #tabs button .dot { width: 5px; height: 5px; }
-    .sidebar .brand .title { font-size: 13px; }
+    /* page-head wraps title + sub onto separate lines on narrow screens. */
+    .page-head { flex-direction: column; align-items: flex-start; gap: 0.1rem; }
   }
 </style>
 </head>
