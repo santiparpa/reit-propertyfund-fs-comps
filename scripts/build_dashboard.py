@@ -393,6 +393,13 @@ HTML_TEMPLATE = r"""<!doctype html>
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
   }
+  /* Defensive: nothing in the page should ever escape the viewport horizontally.
+     Wide data tables live inside `.scroll` wrappers that scroll independently —
+     if anything ever leaks past that, the whole <body> would widen and side-
+     siblings (like .footnote captions) would get cut off at the right edge.
+     overflow-x: clip prevents that without creating a scroll container (which
+     would break the sticky-thead / sticky-first-col positioning inside .scroll). */
+  body { overflow-x: clip; }
   ::selection { background: #dbeafe; }
 
   /* ============ LAYOUT: sidebar + main ============ */
@@ -846,6 +853,10 @@ HTML_TEMPLATE = r"""<!doctype html>
   /* Flush the scroll-table inside a panel to the panel edges */
   .panel.flush { padding: 0; }
   .panel.flush > .scroll { border-radius: var(--radius-lg); max-height: 72vh; max-height: 72dvh; }
+  /* Heatmap is denser than the regular data tables, so let it take a slightly
+     larger vertical window on desktop. Mobile rule below drops max-height
+     entirely so the heatmap scrolls with the page. */
+  .panel.flush > .heat-scroll { max-height: 75vh; max-height: 75dvh; }
   .panel.flush table.data thead th:first-child,
   .panel.flush table.heat thead th:first-child,
   .panel.flush table.data tbody td:first-child,
@@ -1200,7 +1211,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     </label>
   </div>
   <div class="panel flush">
-    <div class="scroll" style="max-height:75vh"><table class="heat" id="heat-table"></table></div>
+    <div class="scroll heat-scroll"><table class="heat" id="heat-table"></table></div>
     <div class="footnote">Green = positive change &middot; Red = negative change &middot; Hatched cell = no data filed for that quarter.</div>
   </div>
 </section>
