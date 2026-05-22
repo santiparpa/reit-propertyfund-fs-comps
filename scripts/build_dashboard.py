@@ -466,6 +466,7 @@ HTML_TEMPLATE = r"""<!doctype html>
   .ts-layout > .ts-symbols-card {
     display: flex;
     flex-direction: column;
+    align-items: stretch;   /* override .controls' align-items: end, which would right-align the label & hint in this flex-column layout */
     align-self: stretch;
     margin-bottom: 0;
     padding: 14px;
@@ -861,7 +862,15 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
     main { padding: 16px; max-width: 100%; grid-column: 1; grid-row: 2; }
     .ts-layout { grid-template-columns: 1fr; }
-    .ts-symbols-card select[multiple] { min-height: 140px; }
+    /* In single-column layout the symbols card must not flex-stretch — let the
+       <select multiple> take its natural height (compact button on iOS Safari,
+       a fixed-size listbox elsewhere) instead of inflating to fill the row. */
+    .ts-layout > .ts-symbols-card { overflow: visible; }
+    .ts-symbols-card select[multiple] {
+      flex: 0 0 auto;
+      height: auto;
+      min-height: 140px;
+    }
     .chart-wrap { height: 360px; }
     .chart-wrap.tall { height: 520px; }
   }
@@ -1381,6 +1390,11 @@ function tsInit(){
   populateLabelSelect(indSel, INDUSTRIES);
   populateItemSelect(itemSel);
   tsRebuildSymbolList();
+
+  // Touch devices have no Cmd/Ctrl — phrase the hint accordingly.
+  const touch = ('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0;
+  const hint = document.getElementById('ts-symbols-hint');
+  if (hint && touch) hint.textContent = 'Tap to add or remove symbols';
 
   // Defaults: first symbol + 'Total Revenue' if it exists
   const defaultItem = DATA.items.find(i => i.name === 'Total Revenue') || DATA.items[0];
