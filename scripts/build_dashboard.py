@@ -758,6 +758,7 @@ HTML_TEMPLATE = r"""<!doctype html>
   .pos { color: var(--pos); }
   .neg { color: var(--neg); }
   .scroll { overflow: auto; max-height: 72vh; }
+  .h-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .scroll table.data, .scroll table.heat { font-variant-numeric: tabular-nums; }
   /* When a table is inside a .scroll wrapper, drop its own borders */
   .scroll table.data thead th { border-top: none; }
@@ -1524,7 +1525,7 @@ function tsRender(){
   const latest = periods[periods.length - 1];
   const itemName = ITEMS_BY_PATH[tsState.item]?.name || tsState.item;
   let html = `<div class="panel-head"><h3>Latest snapshot</h3><span class="sub">${itemName}</span></div>`;
-  html += `<table class="data"><thead><tr>
+  html += `<div class="h-scroll"><table class="data"><thead><tr>
     <th class="sym">Symbol</th>
     <th class="item">Type</th>
     <th class="item">Industry</th>
@@ -1564,7 +1565,7 @@ function tsRender(){
       <td>${fmtFull(avg)}</td>
     </tr>`;
   }
-  html += `</tbody></table><div class="footnote">Item path: <b>${tsState.item}</b></div>`;
+  html += `</tbody></table></div><div class="footnote">Item path: <b>${tsState.item}</b></div>`;
   document.getElementById('ts-summary').innerHTML = html;
 }
 
