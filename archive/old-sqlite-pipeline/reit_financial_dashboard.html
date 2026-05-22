@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>REIT/PFPO Financial Comparison</title>
+  <script src="data/financials_dashboard_data.js"></script>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --ink: #17202a;
+      --muted: #5f6b7a;
+      --line: #d9dee7;
+      --accent: #146c94;
+      --accent-2: #2f8f5b;
+      --warn: #b95000;
+      --bad: #b42318;
+      --good: #177245;
+      --shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    header {
+      padding: 18px 24px 12px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    h1 {
+      font-size: 22px;
+      line-height: 1.25;
+      margin: 0 0 14px;
+      letter-spacing: 0;
+    }
+    .filters {
+      display: grid;
+      grid-template-columns: minmax(220px, 1.3fr) minmax(180px, 0.8fr) minmax(160px, 0.7fr) minmax(220px, 1fr);
+      gap: 12px;
+      align-items: end;
+    }
+    label {
+      display: grid;
+      gap: 5px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    select, input {
+      width: 100%;
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      padding: 6px 8px;
+      font-size: 14px;
+    }
+    select[multiple] { height: 88px; }
+    main { padding: 18px 24px 24px; }
+    .meta {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 14px;
+    }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(150px, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .kpi, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+    .kpi { padding: 14px; }
+    .kpi .label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .kpi .value {
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1.15;
+    }
+    .kpi .sub {
+      margin-top: 5px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+    .panel { padding: 14px; min-width: 0; }
+    .panel h2 {
+      font-size: 15px;
+      margin: 0 0 10px;
+      letter-spacing: 0;
+    }
+    .chart {
+      width: 100%;
+      height: 310px;
+      display: block;
+      background: #fbfcfd;
+      border: 1px solid #ecf0f4;
+      border-radius: 6px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      border-bottom: 1px solid #edf0f4;
+      padding: 8px 7px;
+      text-align: right;
+      white-space: nowrap;
+    }
+    th:first-child, td:first-child,
+    th:nth-child(2), td:nth-child(2) {
+      text-align: left;
+    }
+    th {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+      background: #fbfcfd;
+      position: sticky;
+      top: 0;
+      user-select: none;
+    }
+    th.sortable {
+      cursor: pointer;
+    }
+    th.sortable::after {
+      content: " ↕";
+      color: #98a2b3;
+      font-weight: 400;
+    }
+    th.sorted-asc::after {
+      content: " ↑";
+      color: var(--accent);
+    }
+    th.sorted-desc::after {
+      content: " ↓";
+      color: var(--accent);
+    }
+    .table-wrap {
+      max-height: 430px;
+      overflow: auto;
+      border: 1px solid #ecf0f4;
+      border-radius: 6px;
+    }
+    .good { color: var(--good); }
+    .bad { color: var(--bad); }
+    .muted { color: var(--muted); }
+    .full { grid-column: 1 / -1; }
+    @media (max-width: 980px) {
+      header { position: static; }
+      .filters, .grid, .kpis { grid-template-columns: 1fr; }
+      main, header { padding-left: 14px; padding-right: 14px; }
+      th, td { white-space: normal; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>REIT/PFPO Financial Comparison</h1>
+    <div class="filters">
+      <label>
+        Financial item
+        <select id="itemSelect"></select>
+      </label>
+      <label>
+        Current period
+        <select id="periodSelect"></select>
+      </label>
+      <label>
+        Peer sort
+        <select id="sortSelect">
+          <option value="valueDesc">Value: high to low</option>
+          <option value="qoqDesc">QoQ change: high to low</option>
+          <option value="yoyDesc">YoY change: high to low</option>
+          <option value="symbolAsc">Symbol: A to Z</option>
+        </select>
+      </label>
+      <label>
+        Symbols for trend
+        <select id="symbolSelect" multiple></select>
+      </label>
+    </div>
+  </header>
+  <main>
+    <div class="meta" id="meta"></div>
+    <section class="kpis">
+      <div class="kpi"><div class="label">Symbols</div><div class="value" id="kpiSymbols">-</div><div class="sub">Imported universe</div></div>
+      <div class="kpi"><div class="label">Peer Median</div><div class="value" id="kpiMedian">-</div><div class="sub" id="kpiMedianSub">Selected item</div></div>
+      <div class="kpi"><div class="label">Best QoQ</div><div class="value" id="kpiBestQoq">-</div><div class="sub" id="kpiBestQoqSub">Current vs previous quarter</div></div>
+      <div class="kpi"><div class="label">Best YoY</div><div class="value" id="kpiBestYoy">-</div><div class="sub" id="kpiBestYoySub">Current vs same quarter last year</div></div>
+    </section>
+    <section class="grid">
+      <div class="panel">
+        <h2>Time Series</h2>
+        <svg class="chart" id="lineChart" role="img"></svg>
+      </div>
+      <div class="panel">
+        <h2>Peer Comparison</h2>
+        <svg class="chart" id="barChart" role="img"></svg>
+      </div>
+      <div class="panel full">
+        <h2>Current Period Table</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="sortable" data-sort="symbol">Symbol</th>
+                <th class="sortable" data-sort="name">Name</th>
+                <th class="sortable" data-sort="value">Value (k.Baht)</th>
+                <th class="sortable" data-sort="qoq">QoQ</th>
+                <th class="sortable" data-sort="yoy">YoY</th>
+                <th class="sortable" data-sort="rank">Rank</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script>
+    const DATA = window.FINANCIAL_DATA || {entities: [], periods: [], items: [], facts: [], metadata: {}};
+    const COLORS = ["#146c94", "#2f8f5b", "#b95000", "#7b61a8", "#b42318", "#3277b3", "#667085", "#8a6f2a"];
+    const factMap = new Map(DATA.facts.map(f => [`${f.symbol}|${f.periodId}|${f.itemKey}`, f.value]));
+    const entityMap = new Map(DATA.entities.map(e => [e.symbol, e]));
+    const periods = [...DATA.periods].sort((a, b) => a.sortKey - b.sortKey);
+
+    const itemSelect = document.getElementById("itemSelect");
+    const periodSelect = document.getElementById("periodSelect");
+    const symbolSelect = document.getElementById("symbolSelect");
+    const sortSelect = document.getElementById("sortSelect");
+    const tableSort = {key: "rank", direction: "asc"};
+
+    function valueFor(symbol, periodId, itemKey) {
+      const value = factMap.get(`${symbol}|${periodId}|${itemKey}`);
+      return Number.isFinite(value) ? value : null;
+    }
+    function fmtNumber(value) {
+      if (!Number.isFinite(value)) return "-";
+      const abs = Math.abs(value);
+      if (abs >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+      if (abs >= 1000) return `${(value / 1000).toFixed(1)}K`;
+      return value.toLocaleString(undefined, {maximumFractionDigits: 0});
+    }
+    function fmtPct(value) {
+      if (!Number.isFinite(value)) return "-";
+      return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+    }
+    function pctChange(current, prior) {
+      if (!Number.isFinite(current) || !Number.isFinite(prior) || prior === 0) return null;
+      return ((current - prior) / Math.abs(prior)) * 100;
+    }
+    function median(values) {
+      const nums = values.filter(Number.isFinite).sort((a, b) => a - b);
+      if (!nums.length) return null;
+      const mid = Math.floor(nums.length / 2);
+      return nums.length % 2 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+    }
+    function priorPeriod(period, offset) {
+      const idx = periods.findIndex(p => p.id === period.id);
+      return idx - offset >= 0 ? periods[idx - offset] : null;
+    }
+    function selectedSymbols() {
+      const chosen = [...symbolSelect.selectedOptions].map(o => o.value);
+      return chosen.length ? chosen : DATA.entities.slice(0, 5).map(e => e.symbol);
+    }
+    function getRows() {
+      const itemKey = itemSelect.value;
+      const period = periods.find(p => String(p.id) === periodSelect.value);
+      const qoqPeriod = priorPeriod(period, 1);
+      const yoyPeriod = priorPeriod(period, 4);
+      const rows = DATA.entities.map(e => {
+        const value = valueFor(e.symbol, period.id, itemKey);
+        const qoq = qoqPeriod ? pctChange(value, valueFor(e.symbol, qoqPeriod.id, itemKey)) : null;
+        const yoy = yoyPeriod ? pctChange(value, valueFor(e.symbol, yoyPeriod.id, itemKey)) : null;
+        return {...e, value, qoq, yoy};
+      }).filter(r => Number.isFinite(r.value));
+      rows.sort((a, b) => {
+        if (sortSelect.value === "symbolAsc") return a.symbol.localeCompare(b.symbol);
+        if (sortSelect.value === "qoqDesc") return (b.qoq ?? -Infinity) - (a.qoq ?? -Infinity);
+        if (sortSelect.value === "yoyDesc") return (b.yoy ?? -Infinity) - (a.yoy ?? -Infinity);
+        return b.value - a.value;
+      });
+      return rows.map((row, index) => ({...row, rank: index + 1}));
+    }
+    function sortTableRows(rows) {
+      const dir = tableSort.direction === "asc" ? 1 : -1;
+      const missing = tableSort.direction === "asc" ? Infinity : -Infinity;
+      const sorted = [...rows].sort((a, b) => {
+        if (tableSort.key === "symbol" || tableSort.key === "name") {
+          return dir * String(a[tableSort.key] || "").localeCompare(String(b[tableSort.key] || ""));
+        }
+        return dir * ((a[tableSort.key] ?? missing) - (b[tableSort.key] ?? missing));
+      });
+      document.querySelectorAll("th.sortable").forEach(th => {
+        th.classList.toggle("sorted-asc", th.dataset.sort === tableSort.key && tableSort.direction === "asc");
+        th.classList.toggle("sorted-desc", th.dataset.sort === tableSort.key && tableSort.direction === "desc");
+      });
+      return sorted;
+    }
+    function drawSvg(svg, width, height, content) {
+      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      svg.innerHTML = content;
+    }
+    function scale(value, min, max, start, end) {
+      if (max === min) return (start + end) / 2;
+      return start + ((value - min) / (max - min)) * (end - start);
+    }
+    function drawLineChart() {
+      const svg = document.getElementById("lineChart");
+      const itemKey = itemSelect.value;
+      const symbols = selectedSymbols();
+      const w = 820, h = 310, left = 62, right = 20, top = 20, bottom = 44;
+      const series = symbols.map(symbol => ({
+        symbol,
+        points: periods.map(p => ({period: p, value: valueFor(symbol, p.id, itemKey)})).filter(p => Number.isFinite(p.value))
+      })).filter(s => s.points.length);
+      const values = series.flatMap(s => s.points.map(p => p.value));
+      const min = Math.min(0, ...values);
+      const max = Math.max(1, ...values);
+      const xFor = p => scale(p.sortKey, periods[0].sortKey, periods[periods.length - 1].sortKey, left, w - right);
+      const yFor = v => scale(v, min, max, h - bottom, top);
+      const grid = [0, 0.25, 0.5, 0.75, 1].map(t => {
+        const y = top + t * (h - top - bottom);
+        const label = fmtNumber(max - t * (max - min));
+        return `<line x1="${left}" y1="${y}" x2="${w - right}" y2="${y}" stroke="#e7ebf0"/><text x="8" y="${y + 4}" font-size="11" fill="#5f6b7a">${label}</text>`;
+      }).join("");
+      const paths = series.map((s, i) => {
+        const color = COLORS[i % COLORS.length];
+        const d = s.points.map((p, idx) => `${idx ? "L" : "M"}${xFor(p.period).toFixed(1)},${yFor(p.value).toFixed(1)}`).join(" ");
+        const dots = s.points.map(p => `<circle cx="${xFor(p.period)}" cy="${yFor(p.value)}" r="2.8" fill="${color}"><title>${s.symbol} ${p.period.label}: ${fmtNumber(p.value)}</title></circle>`).join("");
+        return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2.2"/>${dots}<text x="${w - right - 70}" y="${18 + i * 17}" font-size="12" fill="${color}">${s.symbol}</text>`;
+      }).join("");
+      const labels = periods.map((p, i) => i % 2 === 0 ? `<text x="${xFor(p)}" y="${h - 17}" text-anchor="middle" font-size="10" fill="#5f6b7a">${p.label}</text>` : "").join("");
+      drawSvg(svg, w, h, `${grid}<line x1="${left}" y1="${h - bottom}" x2="${w - right}" y2="${h - bottom}" stroke="#cfd6df"/>${labels}${paths}`);
+    }
+    function drawBarChart(rows) {
+      const svg = document.getElementById("barChart");
+      const topRows = rows.slice(0, 12);
+      const w = 640, h = 310, left = 78, right = 24, top = 18, bottom = 18;
+      const max = Math.max(1, ...topRows.map(r => Math.max(0, r.value)));
+      const rowH = (h - top - bottom) / Math.max(1, topRows.length);
+      const bars = topRows.map((r, i) => {
+        const y = top + i * rowH + 4;
+        const bw = scale(Math.max(0, r.value), 0, max, 0, w - left - right);
+        return `<text x="8" y="${y + rowH / 2 + 4}" font-size="11" fill="#17202a">${r.symbol}</text>
+          <rect x="${left}" y="${y}" width="${bw}" height="${Math.max(8, rowH - 8)}" rx="3" fill="#146c94"><title>${r.symbol}: ${fmtNumber(r.value)}</title></rect>
+          <text x="${left + bw + 5}" y="${y + rowH / 2 + 4}" font-size="11" fill="#5f6b7a">${fmtNumber(r.value)}</text>`;
+      }).join("");
+      drawSvg(svg, w, h, bars || `<text x="20" y="40" font-size="13" fill="#5f6b7a">No data for this selection</text>`);
+    }
+    function renderTable(rows) {
+      document.getElementById("tableBody").innerHTML = sortTableRows(rows).map(r => `
+        <tr>
+          <td><strong>${r.symbol}</strong></td>
+          <td>${r.name || ""}</td>
+          <td>${fmtNumber(r.value)}</td>
+          <td class="${(r.qoq ?? 0) >= 0 ? "good" : "bad"}">${fmtPct(r.qoq)}</td>
+          <td class="${(r.yoy ?? 0) >= 0 ? "good" : "bad"}">${fmtPct(r.yoy)}</td>
+          <td>${r.rank}</td>
+        </tr>
+      `).join("");
+    }
+    function renderKpis(rows) {
+      const bestQoq = rows.filter(r => Number.isFinite(r.qoq)).sort((a, b) => b.qoq - a.qoq)[0];
+      const bestYoy = rows.filter(r => Number.isFinite(r.yoy)).sort((a, b) => b.yoy - a.yoy)[0];
+      document.getElementById("kpiSymbols").textContent = DATA.entities.length;
+      document.getElementById("kpiMedian").textContent = fmtNumber(median(rows.map(r => r.value)));
+      document.getElementById("kpiBestQoq").textContent = bestQoq ? bestQoq.symbol : "-";
+      document.getElementById("kpiBestQoqSub").textContent = bestQoq ? fmtPct(bestQoq.qoq) : "No prior quarter";
+      document.getElementById("kpiBestYoy").textContent = bestYoy ? bestYoy.symbol : "-";
+      document.getElementById("kpiBestYoySub").textContent = bestYoy ? fmtPct(bestYoy.yoy) : "No same-quarter prior year";
+    }
+    function render() {
+      const rows = getRows();
+      renderKpis(rows);
+      drawLineChart();
+      drawBarChart(rows);
+      renderTable(rows);
+    }
+    function init() {
+      const preferred = ["total_revenue", "net_investment_income", "total_expenses", "increase_decrease_in_net_assets_from_operations"];
+      const groupOrder = ["Revenue", "Expenses", "Gains / Losses", "Profit / Comprehensive Income", "Other"];
+      groupOrder.forEach(group => {
+        const groupedItems = DATA.items.filter(item => item.group === group);
+        if (!groupedItems.length) return;
+        const optgroup = document.createElement("optgroup");
+        optgroup.label = group;
+        groupedItems.forEach(item => {
+          const option = new Option(`${item.name} (${item.factCount})`, item.key);
+          optgroup.appendChild(option);
+        });
+        itemSelect.appendChild(optgroup);
+      });
+      itemSelect.value = preferred.find(key => DATA.items.some(item => item.key === key)) || DATA.items[0]?.key;
+      const labelCounts = periods.reduce((acc, period) => {
+        acc[period.label] = (acc[period.label] || 0) + 1;
+        return acc;
+      }, {});
+      periods.forEach(period => {
+        const label = labelCounts[period.label] > 1
+          ? `${period.label} (${period.startDate} to ${period.endDate})`
+          : period.label;
+        periodSelect.add(new Option(label, period.id));
+      });
+      periodSelect.value = String(periods[periods.length - 1]?.id || "");
+      DATA.entities.forEach((entity, index) => {
+        const option = new Option(entity.symbol, entity.symbol);
+        option.selected = index < 5;
+        symbolSelect.add(option);
+      });
+      document.getElementById("meta").textContent =
+        `Database: ${DATA.metadata.database || "data/financials.sqlite"} | Files: ${DATA.metadata.fileCount || 0} | Generated: ${DATA.metadata.generatedAt || "-"} | Unit: ${DATA.metadata.unit || "k.Baht"}`;
+      [itemSelect, periodSelect, symbolSelect, sortSelect].forEach(el => el.addEventListener("change", render));
+      document.querySelectorAll("th.sortable").forEach(th => {
+        th.addEventListener("click", () => {
+          const key = th.dataset.sort;
+          if (tableSort.key === key) {
+            tableSort.direction = tableSort.direction === "asc" ? "desc" : "asc";
+          } else {
+            tableSort.key = key;
+            tableSort.direction = ["symbol", "name", "rank"].includes(key) ? "asc" : "desc";
+          }
+          render();
+        });
+      });
+      render();
+    }
+    init();
+  </script>
+</body>
+</html>
