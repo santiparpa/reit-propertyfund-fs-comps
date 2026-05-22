@@ -907,7 +907,12 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
     .ts-symbols-card.controls { grid-template-columns: 1fr; }
     .controls label { font-size: 11px; }
-    .controls select, .controls input[type=text] { height: 32px; font-size: 13px; }
+    /* iOS Safari auto-zooms the viewport when a focused input has font-size
+       < 16px, and doesn't always zoom back out — which is why the sidebar
+       and other content look randomly enlarged on subsequent visits.
+       Keep the visual size compact by widening the touch target slightly
+       and pinning the text to 16px to defeat the auto-zoom. */
+    .controls select, .controls input[type=text] { height: 36px; font-size: 16px; }
 
     /* Panels & data containers. Drop max-height on .scroll wrappers so tables
        flow with page-scroll instead of trapping the user inside a 60vh window. */
