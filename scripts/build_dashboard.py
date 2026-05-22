@@ -884,25 +884,32 @@ HTML_TEMPLATE = r"""<!doctype html>
   /* Phone: stack controls vertically, shrink everything */
   @media (max-width: 640px) {
     html, body { font-size: 12.5px; }
-    main { padding: 12px 10px 28px; }
-    .page-head { flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 12px; }
+    main { padding: 10px 10px 28px; }
+    .page-head { flex-direction: column; align-items: flex-start; gap: 2px; margin-bottom: 8px; }
     .page-head h2 { font-size: 16px; }
     .page-head .page-sub { font-size: 11.5px; }
-    #fy-banner { font-size: 11.5px; padding: 8px 10px; }
+    #fy-banner { font-size: 11.5px; padding: 8px 10px; margin-bottom: 8px; }
+    .controls { margin-bottom: 8px; }
+    .panel + .panel { margin-top: 8px; }
 
     .controls {
-      grid-template-columns: 1fr;
+      grid-template-columns: 1fr 1fr;   /* 2-column on phones so 6-8 filters don't stack into a 300px+ tower above the chart/table */
       gap: 8px;
       padding: 10px 12px;
     }
+    /* Time series symbols card stays full-width — it has its own 2-up filter row inside */
+    .ts-symbols-card.controls { grid-template-columns: 1fr; }
     .controls label { font-size: 11px; }
     .controls select, .controls input[type=text] { height: 32px; font-size: 13px; }
 
     .panel { padding: 10px 12px; }
-    .panel.flush > .scroll { max-height: 60vh; }
+    /* On mobile, let tables flow with the page (no nested vertical scroll
+       trap) and use container-scroll for horizontal overflow only. Sticky
+       thead/first-col still works — it just anchors to the viewport. */
+    .panel.flush > .scroll,
+    .scroll { max-height: none; }
     .chart-wrap { height: 280px; }
     .chart-wrap.tall { height: 440px; }
-    .scroll { max-height: 60vh; }
 
     /* Tables: shrink horizontal padding so more fits per row */
     table.data th, table.data td { padding: 6px 6px; font-size: 11.5px; }
