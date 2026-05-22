@@ -475,16 +475,22 @@ HTML_TEMPLATE = r"""<!doctype html>
     overflow: hidden;
   }
   /* Pair Fund type + Industry as a 2-up filter row so they read as a group
-     attached to the Symbols list below. */
+     attached to the Symbols list below. Flex (not grid) so each dropdown
+     can size to its content and the pair sits flush against the left edge
+     instead of stretching to fill the row. */
   .ts-symbols-card .filter-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     padding-bottom: 10px;
     border-bottom: 1px solid var(--border);
   }
   .ts-symbols-card .filter-row label {
     margin: 0;
+    flex: 0 0 auto;
+  }
+  .ts-symbols-card .filter-row select {
+    width: auto;
   }
   .ts-symbols-card label.full { display: contents; }
   .ts-symbols-card .label-text {
