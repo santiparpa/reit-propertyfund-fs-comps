@@ -409,7 +409,18 @@ HTML_TEMPLATE = r"""<!doctype html>
     padding: 22px 28px 40px;
     max-width: 1600px;
     width: 100%;
+    /* Stop wide grid children (Chart.js canvases, long tables) from forcing the
+       grid track wider than the viewport — without this `min-width: auto`
+       (the grid default) lets content blow out the layout on mobile. */
+    min-width: 0;
   }
+  /* Charts and scrollable wrappers must never push the layout wider than
+     their flex/grid parent. Belt-and-braces in case Chart.js renders into
+     a hidden tab at a stale size — when the tab is shown the canvas can't
+     drag the page open. */
+  .chart-wrap { min-width: 0; }
+  .chart-wrap > canvas { max-width: 100% !important; }
+  .scroll, .h-scroll { max-width: 100%; }
   .page-head {
     display: flex; align-items: baseline; justify-content: space-between;
     gap: 16px; margin-bottom: 16px;
@@ -466,6 +477,10 @@ HTML_TEMPLATE = r"""<!doctype html>
   .ts-layout > .ts-symbols-card {
     display: flex;
     flex-direction: column;
+    /* Reset `align-items: end` inherited from .controls (which is a grid).
+       Under flex-direction: column that would right-align children to their
+       intrinsic widths instead of stretching them to fill the card. */
+    align-items: stretch;
     align-self: stretch;
     margin-bottom: 0;
     padding: 14px;
@@ -875,13 +890,49 @@ HTML_TEMPLATE = r"""<!doctype html>
     .page-head .page-sub { font-size: 11.5px; }
     #fy-banner { font-size: 11.5px; padding: 8px 10px; }
 
+    /* Pack 2 controls per row on phones — 7-8 stacked single-column filters
+       pushes the chart 500px below the fold. 2-up uses ~half the vertical
+       space and still leaves each cell wide enough for a dropdown. */
     .controls {
-      grid-template-columns: 1fr;
-      gap: 8px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 10px;
       padding: 10px 12px;
     }
     .controls label { font-size: 11px; }
     .controls select, .controls input[type=text] { height: 32px; font-size: 13px; }
+    /* The Symbols card on the TS tab is a special single-column flex layout —
+       don't apply the 2-up grid there. */
+    .ts-symbols-card { grid-template-columns: 1fr; }
+    /* Raw-data: hide low-value columns on phones. Item path duplicates Item
+       name + Category and eats 685px on its own. Fiscal Q duplicates Calendar
+       Q for the 49/56 stocks on calendar fiscal years; for the 7 that don't,
+       the row's Calendar Q already shows the difference. */
+    #raw-table th:nth-child(5),
+    #raw-table td:nth-child(5),
+    #raw-table th:nth-child(8),
+    #raw-table td:nth-child(8) { display: none; }
+    /* Drop the Rank column on phones — sort order already conveys rank,
+       and it lets the Symbol column become the sticky leftmost. */
+    #peer-table th:first-child,
+    #peer-table td:first-child { display: none; }
+    /* Sticky symbol column on peer + raw tables so the user doesn't lose
+       context while scrolling the wide table sideways. Body cells go to
+       z-index 1; the sticky header corner needs to stack ABOVE the body
+       sticky cells (else scrolling makes the column-1 data overpaint its
+       own header) and above other thead cells (z-index 1 from the base
+       table.data rule). */
+    #peer-table tbody td:nth-child(2),
+    #raw-table tbody td:first-child {
+      position: sticky; left: 0; z-index: 1;
+      background: var(--surface);
+      box-shadow: 1px 0 0 var(--border);
+    }
+    #peer-table thead th:nth-child(2),
+    #raw-table thead th:first-child {
+      position: sticky; left: 0; z-index: 3;
+      background: var(--surface);
+      box-shadow: 1px 0 0 var(--border);
+    }
 
     .panel { padding: 10px 12px; }
     .panel.flush > .scroll { max-height: 60vh; }
@@ -969,7 +1020,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       <label class="full">
         <span class="label-text">Symbols</span>
         <select id="ts-symbols" multiple></select>
-        <span class="hint" id="ts-symbols-hint">Cmd/Ctrl-click to pick several</span>
+        <span class="hint" id="ts-symbols-hint">Cmd/Ctrl-click (tap on touch) to pick several</span>
       </label>
     </div>
     <div class="ts-right">
@@ -977,7 +1028,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         <label>Line item
           <select id="ts-item"></select>
         </label>
-        <label>Mode
+        <label>Compare against
           <select id="ts-mode">
             <option value="abs">Absolute</option>
             <option value="qoq">QoQ %</option>
@@ -1036,8 +1087,8 @@ HTML_TEMPLATE = r"""<!doctype html>
     <label>Compare against
       <select id="peer-compare">
         <option value="abs">Absolute</option>
-        <option value="qoq">vs. prior Q (%)</option>
-        <option value="yoy">YoY (%)</option>
+        <option value="qoq">QoQ %</option>
+        <option value="yoy">YoY %</option>
         <option value="rev">% of Total Revenue</option>
       </select>
     </label>
@@ -1062,11 +1113,11 @@ HTML_TEMPLATE = r"""<!doctype html>
     <label>Line item
       <select id="heat-item"></select>
     </label>
-    <label>Display
+    <label>Compare against
       <select id="heat-mode">
+        <option value="abs">Absolute</option>
         <option value="qoq">QoQ %</option>
         <option value="yoy">YoY %</option>
-        <option value="abs">Absolute</option>
       </select>
     </label>
     <label>Fund type
@@ -1317,12 +1368,24 @@ function wireSelect(id, onChange){
 }
 
 // ----- tab switching -----
+// Charts inside hidden tabs render at a stale (often wider) size. When a tab
+// becomes visible we re-fit any chart inside it to its actual parent width,
+// otherwise on mobile the canvas blows out the grid track.
+function resizeChartsIn(tabId){
+  const sec = document.getElementById('tab-' + tabId);
+  if (!sec) return;
+  for (const cv of sec.querySelectorAll('canvas')){
+    const ch = window.Chart && Chart.getChart && Chart.getChart(cv);
+    if (ch) ch.resize();
+  }
+}
 document.querySelectorAll('#tabs button').forEach(b => {
   b.addEventListener('click', () => {
     document.querySelectorAll('#tabs button').forEach(x => x.classList.remove('active'));
     document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
     document.getElementById('tab-' + b.dataset.tab).classList.add('active');
+    resizeChartsIn(b.dataset.tab);
     // On mobile, close the drawer after a tab is picked
     closeSidebar();
   });
@@ -1642,6 +1705,13 @@ function peerRender(){
 
   const ctx = document.getElementById('peer-chart');
   if (peerChart) peerChart.destroy();
+  // Give each bar a readable slot (≥14px). On phones the .tall preset is only
+  // 440px which crushes 56 stocks into unreadable stripes — let the wrap grow.
+  const wrap = ctx.parentElement;
+  if (wrap && wrap.classList.contains('chart-wrap')){
+    const needed = Math.max(420, rows.length * 16 + 60);
+    wrap.style.height = needed + 'px';
+  }
   const isPct = peerState.compare !== 'abs';
   // Always colour bars by industry — sign of % is conveyed by the bar
   // direction (negative bars extend left of zero) and by the green/red
@@ -1713,9 +1783,9 @@ function peerRender(){
     <th class="item">Type</th>
     <th class="item">Industry</th>
     <th>${headerVal}</th>`;
-  if (cmp === 'abs') {
-    html += `<th>Raw value (k.Baht)</th>`;
-  } else if (cmp === 'qoq') {
+  // In absolute mode the "headerVal" column already shows the raw number, so
+  // don't render a duplicate Raw value column (formerly two identical cols).
+  if (cmp === 'qoq') {
     html += `<th>${curQ} (k.Baht)</th><th>${prevQ(curQ)} (k.Baht)</th>`;
   } else if (cmp === 'yoy') {
     html += `<th>${curQ} (k.Baht)</th><th>${yoyQ(curQ)} (k.Baht)</th>`;
@@ -1733,9 +1803,7 @@ function peerRender(){
       <td class="item">${typePill(l.type)}</td>
       <td class="item">${industryPill(l.industry)}</td>
       <td class="${cls}">${fmtVal}</td>`;
-    if (cmp === 'abs') {
-      html += `<td>${fmtFull(r.raw)}</td>`;
-    } else {
+    if (cmp !== 'abs') {
       html += `<td>${fmtFull(r.raw)}</td><td>${fmtFull(r.compareValue)}</td>`;
     }
     html += `</tr>`;
@@ -1761,6 +1829,10 @@ function heatInit(){
   const defaultItem = DATA.items.find(i => i.name === 'Total Revenue') || DATA.items[0];
   itemSel.value = defaultItem.path;
   heatState.item = defaultItem.path;
+  // Compare-against options now share order with the other tabs (Absolute
+  // first); the heatmap's natural default is still QoQ since this tab is about
+  // change-over-time, so pin the select to match heatState.mode.
+  document.getElementById('heat-mode').value = heatState.mode;
   itemSel.addEventListener('change', () => { heatState.item = itemSel.value; heatRender(); });
   typeSel.addEventListener('change', () => { heatState.type = typeSel.value; heatRender(); });
   indSel.addEventListener('change', () => { heatState.industry = indSel.value; heatRender(); });

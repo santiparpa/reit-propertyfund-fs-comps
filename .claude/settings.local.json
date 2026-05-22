@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "PowerShell(python scripts/build.py)",
-      "PowerShell(Remove-Item *)"
+      "PowerShell(Remove-Item *)",
+      "mcp__Claude_Preview__preview_start"
     ]
   }
 }
