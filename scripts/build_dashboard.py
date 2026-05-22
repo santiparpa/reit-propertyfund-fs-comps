@@ -306,7 +306,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Thai REIT/PFPO Financials — Dashboard</title>
+<title>REIT & Property Fund Analytics</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -351,6 +351,9 @@ HTML_TEMPLATE = r"""<!doctype html>
 
   /* ============ LAYOUT: sidebar + main ============ */
   .app { display: grid; grid-template-columns: 236px 1fr; min-height: 100vh; }
+  /* Mobile-only topbar + drawer overlay — hidden on desktop */
+  .topbar { display: none; }
+  .sidebar-overlay { display: none; }
   .sidebar {
     background: var(--surface-2);
     border-right: 1px solid var(--border);
@@ -700,7 +703,12 @@ HTML_TEMPLATE = r"""<!doctype html>
     font-size: 11px;
     position: sticky; top: 0; z-index: 3;
     border-bottom: 1px solid var(--border-strong);
+    cursor: pointer; user-select: none;
   }
+  table.heat thead th:hover { color: var(--text); }
+  table.heat th.sort-asc, table.heat th.sort-desc { color: var(--accent); }
+  table.heat th.sort-asc::after  { content: " ▲"; font-size: 9px; color: var(--accent); }
+  table.heat th.sort-desc::after { content: " ▼"; font-size: 9px; color: var(--accent); }
   table.heat th.sym {
     text-align: left;
     position: sticky; left: 0; z-index: 4;
@@ -771,23 +779,63 @@ HTML_TEMPLATE = r"""<!doctype html>
   ::-webkit-scrollbar-track { background: transparent; }
 
   /* ============ RESPONSIVE / MOBILE ============ */
-  /* Tablet: collapse sidebar to a top bar, single-column main */
+  /* Tablet/phone: sidebar becomes an off-canvas drawer, opened via hamburger */
   @media (max-width: 900px) {
-    .app { grid-template-columns: 1fr; }
-    .sidebar {
-      position: static; height: auto;
-      flex-direction: row; flex-wrap: wrap; align-items: center;
-      gap: 10px;
-      padding: 10px 14px;
-      border-right: none;
+    .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .topbar {
+      display: flex; align-items: center; gap: 12px;
+      grid-column: 1; grid-row: 1;
+      position: sticky; top: 0; z-index: 100;
+      background: var(--surface);
       border-bottom: 1px solid var(--border);
+      padding: 10px 14px;
     }
-    .sidebar .brand { padding: 0; margin-right: auto; }
-    .sidebar .nav-label { display: none; }
-    .sidebar-meta { display: none; }
-    #tabs { flex-direction: row; flex-wrap: wrap; gap: 4px; }
-    #tabs button { padding: 6px 12px; font-size: 12px; }
-    main { padding: 16px; max-width: 100%; }
+    .topbar-title {
+      font-size: 14px; font-weight: 600;
+      color: var(--text); letter-spacing: -0.01em;
+    }
+    .hamburger {
+      width: 34px; height: 34px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer; padding: 0;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      gap: 4px;
+      transition: background 80ms ease, border-color 80ms ease;
+    }
+    .hamburger:hover { background: var(--surface-2); border-color: var(--border-strong); }
+    .hamburger:active { background: rgba(17,24,39,.06); }
+    .hamburger span {
+      display: block; width: 16px; height: 1.6px;
+      background: var(--text-2); border-radius: 1px;
+    }
+    .sidebar {
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      width: 260px; max-width: 82vw;
+      height: 100vh;
+      z-index: 200;
+      transform: translateX(-100%);
+      transition: transform 220ms ease;
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+    }
+    .sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(16,24,40,.12); }
+    .sidebar-overlay {
+      display: block;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0);
+      z-index: 150;
+      pointer-events: none;
+      transition: background 220ms ease;
+    }
+    .sidebar-overlay.open {
+      background: rgba(15,23,42,.45);
+      pointer-events: auto;
+    }
+    main { padding: 16px; max-width: 100%; grid-column: 1; grid-row: 2; }
     .ts-layout { grid-template-columns: 1fr; }
     .ts-symbols-card select[multiple] { min-height: 140px; }
     .chart-wrap { height: 360px; }
@@ -845,10 +893,17 @@ HTML_TEMPLATE = r"""<!doctype html>
 </head>
 <body>
 <div class="app">
+  <header class="topbar">
+    <button class="hamburger" id="hamburger" aria-label="Open navigation" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="topbar-title">REIT Analytics</div>
+  </header>
+  <div class="sidebar-overlay" id="sidebar-overlay" aria-hidden="true"></div>
   <aside class="sidebar">
     <div class="brand">
-      <div class="title">Thai REIT &middot; PFPO</div>
-      <div class="subtitle">Financial statements</div>
+      <div class="title">REIT Analytics</div>
+      <div class="subtitle">Thai market &middot; quarterly</div>
     </div>
     <div class="nav-list">
       <div class="nav-label">Views</div>
@@ -1242,8 +1297,32 @@ document.querySelectorAll('#tabs button').forEach(b => {
     document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
     document.getElementById('tab-' + b.dataset.tab).classList.add('active');
+    // On mobile, close the drawer after a tab is picked
+    closeSidebar();
   });
 });
+
+// ----- mobile drawer (hamburger menu) -----
+const _sidebar = document.querySelector('.sidebar');
+const _overlay = document.getElementById('sidebar-overlay');
+const _hamburger = document.getElementById('hamburger');
+function openSidebar(){
+  _sidebar.classList.add('open');
+  _overlay.classList.add('open');
+  _hamburger.setAttribute('aria-expanded', 'true');
+  _overlay.setAttribute('aria-hidden', 'false');
+}
+function closeSidebar(){
+  _sidebar.classList.remove('open');
+  _overlay.classList.remove('open');
+  _hamburger.setAttribute('aria-expanded', 'false');
+  _overlay.setAttribute('aria-hidden', 'true');
+}
+_hamburger.addEventListener('click', () => {
+  _sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+});
+_overlay.addEventListener('click', closeSidebar);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSidebar(); });
 
 // =================================================================
 // TAB 1: TIME SERIES
@@ -1503,25 +1582,25 @@ function peerInit(){
 function peerComputeRow(sym){
   const ser = getSeries(sym, peerState.item);
   const v = ser[peerState.period];
-  let display = null, sub = null;
+  let display = null, compareValue = null, comparePeriod = null;
   if (peerState.compare === 'abs') {
     display = v;
   } else if (peerState.compare === 'qoq') {
-    const pv = ser[prevQ(peerState.period)];
-    display = (v != null && pv != null && pv !== 0) ? (v - pv) / Math.abs(pv) * 100 : null;
-    sub = v;
+    comparePeriod = prevQ(peerState.period);
+    compareValue = ser[comparePeriod];
+    display = (v != null && compareValue != null && compareValue !== 0) ? (v - compareValue) / Math.abs(compareValue) * 100 : null;
   } else if (peerState.compare === 'yoy') {
-    const yv = ser[yoyQ(peerState.period)];
-    display = (v != null && yv != null && yv !== 0) ? (v - yv) / Math.abs(yv) * 100 : null;
-    sub = v;
+    comparePeriod = yoyQ(peerState.period);
+    compareValue = ser[comparePeriod];
+    display = (v != null && compareValue != null && compareValue !== 0) ? (v - compareValue) / Math.abs(compareValue) * 100 : null;
   } else if (peerState.compare === 'rev') {
     // % of Total Revenue for that symbol/period
     const trPath = (DATA.items.find(i => i.name === 'Total Revenue') || {}).path;
-    const tr = trPath ? (DATA.values[sym]?.[trPath]?.[peerState.period]) : null;
-    display = (v != null && tr != null && tr !== 0) ? v / tr * 100 : null;
-    sub = v;
+    compareValue = trPath ? (DATA.values[sym]?.[trPath]?.[peerState.period]) : null;
+    comparePeriod = peerState.period;
+    display = (v != null && compareValue != null && compareValue !== 0) ? v / compareValue * 100 : null;
   }
-  return { sym, value: display, raw: v, sub };
+  return { sym, value: display, raw: v, compareValue, comparePeriod };
 }
 
 function peerRender(){
@@ -1599,13 +1678,25 @@ function peerRender(){
     abs: `${itemName} (k.Baht)`,
     qoq: `QoQ %`, yoy: `YoY %`, rev: `% of Total Revenue`
   }[peerState.compare];
+  // Build header. When comparing, expose both the current Q and the comparison
+  // Q raw values so the % delta is easy to interpret at a glance.
+  const cmp = peerState.compare;
+  const curQ = peerState.period;
   let html = `<thead><tr>
     <th class="sym">Rank</th><th class="sym">Symbol</th>
     <th class="item">Type</th>
     <th class="item">Industry</th>
-    <th>${headerVal}</th>
-    <th>Raw value (k.Baht)</th>
-  </tr></thead><tbody>`;
+    <th>${headerVal}</th>`;
+  if (cmp === 'abs') {
+    html += `<th>Raw value (k.Baht)</th>`;
+  } else if (cmp === 'qoq') {
+    html += `<th>${curQ} (k.Baht)</th><th>${prevQ(curQ)} (k.Baht)</th>`;
+  } else if (cmp === 'yoy') {
+    html += `<th>${curQ} (k.Baht)</th><th>${yoyQ(curQ)} (k.Baht)</th>`;
+  } else if (cmp === 'rev') {
+    html += `<th>${itemName} (k.Baht)</th><th>Total Revenue (k.Baht)</th>`;
+  }
+  html += `</tr></thead><tbody>`;
   rows.forEach((r,i) => {
     const fmtVal = isPct ? pct(r.value/100) : fmtFull(r.value);
     const cls = isPct ? (r.value >= 0 ? 'pos' : 'neg') : '';
@@ -1615,9 +1706,13 @@ function peerRender(){
       <td class="sym">${r.sym}</td>
       <td class="item">${typePill(l.type)}</td>
       <td class="item">${industryPill(l.industry)}</td>
-      <td class="${cls}">${fmtVal}</td>
-      <td>${fmtFull(r.raw)}</td>
-    </tr>`;
+      <td class="${cls}">${fmtVal}</td>`;
+    if (cmp === 'abs') {
+      html += `<td>${fmtFull(r.raw)}</td>`;
+    } else {
+      html += `<td>${fmtFull(r.raw)}</td><td>${fmtFull(r.compareValue)}</td>`;
+    }
+    html += `</tr>`;
   });
   html += '</tbody>';
   document.getElementById('peer-table').innerHTML = html;
@@ -1626,7 +1721,9 @@ function peerRender(){
 // =================================================================
 // TAB 3: HEATMAP
 // =================================================================
-const heatState = { item: null, mode: 'qoq', filter: '', sort: 'alpha', type: '', industry: '' };
+// sortCol overrides the preset .sort when set: 'symbol' or a period like '2025Q4'.
+const heatState = { item: null, mode: 'qoq', filter: '', sort: 'alpha', type: '', industry: '',
+                    sortCol: null, sortAsc: true };
 
 function heatInit(){
   const itemSel = document.getElementById('heat-item');
@@ -1642,7 +1739,7 @@ function heatInit(){
   typeSel.addEventListener('change', () => { heatState.type = typeSel.value; heatRender(); });
   indSel.addEventListener('change', () => { heatState.industry = indSel.value; heatRender(); });
   wireSelect('heat-mode', v => { heatState.mode = v; heatRender(); });
-  wireSelect('heat-sort', v => { heatState.sort = v; heatRender(); });
+  wireSelect('heat-sort', v => { heatState.sort = v; heatState.sortCol = null; heatRender(); });
   document.getElementById('heat-filter').addEventListener('input', e => {
     heatState.filter = e.target.value.toLowerCase(); heatRender();
   });
@@ -1682,8 +1779,20 @@ function heatRender(){
     .filter(s => !heatState.filter || s.toLowerCase().includes(heatState.filter))
     .filter(s => symbolMatchesLabels(s, heatState.type, heatState.industry));
 
-  // Sort
-  if (heatState.sort === 'last') {
+  // Sort: an explicit column click overrides the preset dropdown
+  if (heatState.sortCol === 'symbol'){
+    syms.sort((a,b) => a.localeCompare(b));
+    if (!heatState.sortAsc) syms.reverse();
+  } else if (heatState.sortCol){
+    const col = heatState.sortCol;
+    syms.sort((a,b) => {
+      const va = heatCellValue(a, col), vb = heatCellValue(b, col);
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;   // nulls always sink to bottom
+      if (vb == null) return -1;
+      return heatState.sortAsc ? va - vb : vb - va;
+    });
+  } else if (heatState.sort === 'last') {
     const latest = periods[periods.length-1];
     syms.sort((a,b) => (heatCellValue(b,latest)||-Infinity) - (heatCellValue(a,latest)||-Infinity));
   } else if (heatState.sort === 'latestqoq') {
@@ -1708,8 +1817,12 @@ function heatRender(){
   }
   if (maxAbs === 0) maxAbs = 1;
 
-  let html = `<thead><tr><th class="sym">Symbol</th>`;
-  for (const p of periods) html += `<th>${periodLabel(p)}</th>`;
+  const symSortCls = heatState.sortCol === 'symbol' ? (heatState.sortAsc ? 'sort-asc' : 'sort-desc') : '';
+  let html = `<thead><tr><th class="sym ${symSortCls}" data-col="symbol">Symbol</th>`;
+  for (const p of periods) {
+    const sortCls = heatState.sortCol === p ? (heatState.sortAsc ? 'sort-asc' : 'sort-desc') : '';
+    html += `<th class="${sortCls}" data-col="${p}">${periodLabel(p)}</th>`;
+  }
   html += `</tr></thead><tbody>`;
   syms.forEach((s,i) => {
     const l = labelOf(s);
@@ -1725,7 +1838,18 @@ function heatRender(){
     html += `</tr>`;
   });
   html += `</tbody>`;
-  document.getElementById('heat-table').innerHTML = html;
+  const table = document.getElementById('heat-table');
+  table.innerHTML = html;
+  // Wire click-to-sort on every column header. Default direction: ascending for
+  // the symbol column (A→Z), descending for value columns (largest first).
+  table.querySelectorAll('thead th').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.col;
+      if (heatState.sortCol === col) heatState.sortAsc = !heatState.sortAsc;
+      else { heatState.sortCol = col; heatState.sortAsc = (col === 'symbol'); }
+      heatRender();
+    });
+  });
 }
 
 // =================================================================

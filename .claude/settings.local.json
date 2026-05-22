@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(python scripts/build.py)",
+      "PowerShell(Remove-Item *)"
+    ]
+  }
+}
