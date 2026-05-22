@@ -883,29 +883,31 @@ HTML_TEMPLATE = r"""<!doctype html>
 
   /* Phone: stack controls vertically, shrink everything */
   @media (max-width: 640px) {
+    /* Type & page chrome */
     html, body { font-size: 12.5px; }
     main { padding: 10px 10px 28px; }
     .page-head { flex-direction: column; align-items: flex-start; gap: 2px; margin-bottom: 8px; }
     .page-head h2 { font-size: 16px; }
     .page-head .page-sub { font-size: 11.5px; }
     #fy-banner { font-size: 11.5px; padding: 8px 10px; margin-bottom: 8px; }
-    .controls { margin-bottom: 8px; }
-    .panel + .panel { margin-top: 8px; }
 
+    /* Filter bar: 2-column on phones so 6-8 filters don't stack into a 300px+
+       tower above the chart/table. TS symbols card opts out — it has its own
+       2-up filter row inside. */
     .controls {
-      grid-template-columns: 1fr 1fr;   /* 2-column on phones so 6-8 filters don't stack into a 300px+ tower above the chart/table */
+      grid-template-columns: 1fr 1fr;
       gap: 8px;
       padding: 10px 12px;
+      margin-bottom: 8px;
     }
-    /* Time series symbols card stays full-width — it has its own 2-up filter row inside */
     .ts-symbols-card.controls { grid-template-columns: 1fr; }
     .controls label { font-size: 11px; }
     .controls select, .controls input[type=text] { height: 32px; font-size: 13px; }
 
+    /* Panels & data containers. Drop max-height on .scroll wrappers so tables
+       flow with page-scroll instead of trapping the user inside a 60vh window. */
     .panel { padding: 10px 12px; }
-    /* On mobile, let tables flow with the page (no nested vertical scroll
-       trap) and use container-scroll for horizontal overflow only. Sticky
-       thead/first-col still works — it just anchors to the viewport. */
+    .panel + .panel { margin-top: 8px; }
     .panel.flush > .scroll,
     .scroll { max-height: none; }
     .chart-wrap { height: 280px; }
@@ -1161,31 +1163,19 @@ HTML_TEMPLATE = r"""<!doctype html>
 <script id="data" type="application/json">__DATA_JSON__</script>
 <script>
 "use strict";
+
+// =================================================================
+// DATA & INDEXES
+// =================================================================
 const DATA = JSON.parse(document.getElementById('data').textContent);
+const ITEMS_BY_PATH = Object.fromEntries(DATA.items.map(it => [it.path, it]));
+const LABELS = DATA.labels || {};
+const TYPES = DATA.types || [];
+const INDUSTRIES = DATA.industries || [];
 
-// Render fiscal-year banner
-(function renderFyBanner(){
-  const nc = DATA.meta.non_calendar || [];
-  const el = document.getElementById('fy-banner');
-  if (!nc.length){ el.style.display = 'none'; return; }
-  const groups = {};
-  for (const x of nc) (groups[x.fy_starts] = groups[x.fy_starts] || []).push(x.symbol);
-  const parts = Object.entries(groups).map(([start,syms]) =>
-    `<b>FY starts ${start}:</b> <span class="syms">${syms.join(', ')}</span>`);
-  const icon = `<svg class="icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">`
-             + `<circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.4"/>`
-             + `<path d="M8 7.25v3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>`
-             + `<circle cx="8" cy="5.25" r="0.85" fill="currentColor"/></svg>`;
-  el.innerHTML = icon + `<div>All periods aligned to <b>calendar quarters</b> (Jan–Mar = Q1, etc.). `
-               + `${nc.length} symbols use non-calendar fiscal years — `
-               + parts.join(' &middot; ')
-               + `. Hover any value to see the original fiscal label.</div>`;
-})();
-function fiscalOf(sym, period){
-  return (DATA.fiscal && DATA.fiscal[sym] && DATA.fiscal[sym][period]) || null;
-}
-
-// ----- helpers -----
+// =================================================================
+// FORMATTERS — numbers, percentages, period codes
+// =================================================================
 const fmt = (v) => v == null || isNaN(v) ? "" :
   Math.abs(v) >= 1e6 ? (v/1e3).toLocaleString(undefined,{maximumFractionDigits:0})+" M"
   : v.toLocaleString(undefined,{maximumFractionDigits:0});
@@ -1199,8 +1189,64 @@ const prevQ = (p) => {
 };
 const yoyQ = (p) => { const [y,q] = p.split('Q').map(Number); return `${y-1}Q${q}`; };
 const periodLabel = (p) => p;  // already compact
+
+// =================================================================
+// LABELS — type / industry → CSS class, colour, pill HTML
+// =================================================================
+// Saturated palette used to colour chart bars by industry.
+const INDUSTRY_COLORS = {
+  'Retail':            '#ec4899',
+  'Industrial':        '#6366f1',
+  'Office':            '#0ea5e9',
+  'Airport':           '#f97316',
+  'Hospitality':       '#f59e0b',
+  'Mixed':             '#8b5cf6',
+  'Data Center':       '#10b981',
+  'Convention Center': '#d946ef',
+  'Residential':       '#14b8a6',
+  'Self-storage':      '#64748b',
+};
+// Fallback palette for time-series lines when industries repeat or are missing.
 const palette = ["#2563eb","#16a34a","#dc2626","#9333ea","#0891b2","#ea580c","#65a30d","#db2777","#7c3aed","#0d9488","#facc15","#475569"];
-// Shared Chart.js theme tokens for the light dashboard
+
+const slug = (s) => (s || '').replace(/[^a-zA-Z]/g, '');
+const labelOf = (sym) => LABELS[sym] || { type:'', industry:'' };
+const industryClass = (ind) => ind ? `ind-${slug(ind)}` : 'ind-Unknown';
+const typeClass = (t) => t ? `type-${slug(t)}` : 'type-Unknown';
+const industryColor = (ind) => INDUSTRY_COLORS[ind] || '#94a3b8';
+const industryPill = (ind) => ind
+  ? `<span class="ind-pill ${industryClass(ind)}">${ind}</span>`
+  : '<span class="ind-pill ind-Unknown">—</span>';
+const typePill = (t) => t
+  ? `<span class="type-pill ${typeClass(t)}">${t}</span>`
+  : '<span class="type-pill type-Unknown">—</span>';
+function symbolMatchesLabels(sym, typeF, industryF){
+  const l = labelOf(sym);
+  if (typeF && l.type !== typeF) return false;
+  if (industryF && l.industry !== industryF) return false;
+  return true;
+}
+
+// =================================================================
+// DATA ACCESSORS
+// =================================================================
+function fiscalOf(sym, period){
+  return (DATA.fiscal && DATA.fiscal[sym] && DATA.fiscal[sym][period]) || null;
+}
+function getSeries(sym, itemPath){
+  return (DATA.values[sym] && DATA.values[sym][itemPath]) || {};
+}
+function periodsForSymbol(sym){
+  // periods where ANY value exists
+  const seen = new Set();
+  const v = DATA.values[sym] || {};
+  for (const ip in v) for (const p in v[ip]) seen.add(p);
+  return [...seen].sort(periodSort);
+}
+
+// =================================================================
+// CHART.JS THEME — shared font, colours, tooltip styling
+// =================================================================
 const CHART_FONT = '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
 const CHART_THEME = {
   tickColor: '#6b7280',
@@ -1229,45 +1275,9 @@ if (window.Chart) {
   Chart.defaults.borderColor = CHART_THEME.gridColor;
 }
 
-// Index helpers
-const ITEMS_BY_PATH = Object.fromEntries(DATA.items.map(it => [it.path, it]));
-
-// ----- label (type/industry) helpers -----
-const LABELS = DATA.labels || {};
-const TYPES = DATA.types || [];
-const INDUSTRIES = DATA.industries || [];
-// Saturated palette used to colour chart bars by industry.
-const INDUSTRY_COLORS = {
-  'Retail':            '#ec4899',
-  'Industrial':        '#6366f1',
-  'Office':            '#0ea5e9',
-  'Airport':           '#f97316',
-  'Hospitality':       '#f59e0b',
-  'Mixed':             '#8b5cf6',
-  'Data Center':       '#10b981',
-  'Convention Center': '#d946ef',
-  'Residential':       '#14b8a6',
-  'Self-storage':      '#64748b',
-};
-function labelOf(sym){ return LABELS[sym] || { type:'', industry:'' }; }
-function slug(s){ return (s || '').replace(/[^a-zA-Z]/g, ''); }
-function industryClass(ind){ return ind ? `ind-${slug(ind)}` : 'ind-Unknown'; }
-function typeClass(t){ return t ? `type-${slug(t)}` : 'type-Unknown'; }
-function industryColor(ind){ return INDUSTRY_COLORS[ind] || '#94a3b8'; }
-function industryPill(ind){
-  if (!ind) return '<span class="ind-pill ind-Unknown">—</span>';
-  return `<span class="ind-pill ${industryClass(ind)}">${ind}</span>`;
-}
-function typePill(t){
-  if (!t) return '<span class="type-pill type-Unknown">—</span>';
-  return `<span class="type-pill ${typeClass(t)}">${t}</span>`;
-}
-function symbolMatchesLabels(sym, typeF, industryF){
-  const l = labelOf(sym);
-  if (typeF && l.type !== typeF) return false;
-  if (industryF && l.industry !== industryF) return false;
-  return true;
-}
+// =================================================================
+// SELECT POPULATORS — keep <select> elements in sync with DATA
+// =================================================================
 function populateLabelSelect(sel, options){
   // preserve the leading "(All)" / "(any)" option that's already in the HTML
   const first = sel.querySelector('option');
@@ -1279,18 +1289,6 @@ function populateLabelSelect(sel, options){
     sel.appendChild(o);
   }
 }
-function getSeries(sym, itemPath){
-  const m = DATA.values[sym] && DATA.values[sym][itemPath];
-  return m || {};
-}
-function periodsForSymbol(sym){
-  // periods where ANY value exists
-  const seen = new Set();
-  const v = DATA.values[sym] || {};
-  for (const ip in v) for (const p in v[ip]) seen.add(p);
-  return [...seen].sort(periodSort);
-}
-
 function populateItemSelect(sel, opts){
   opts = opts || {};
   sel.innerHTML = "";
@@ -1338,39 +1336,65 @@ function wireSelect(id, onChange){
   el.addEventListener('change', () => onChange(el.value));
 }
 
-// ----- tab switching -----
+// =================================================================
+// FY BANNER — flag non-calendar fiscal years at the top of the page
+// =================================================================
+(function renderFyBanner(){
+  const nc = DATA.meta.non_calendar || [];
+  const el = document.getElementById('fy-banner');
+  if (!nc.length){ el.style.display = 'none'; return; }
+  const groups = {};
+  for (const x of nc) (groups[x.fy_starts] = groups[x.fy_starts] || []).push(x.symbol);
+  const parts = Object.entries(groups).map(([start,syms]) =>
+    `<b>FY starts ${start}:</b> <span class="syms">${syms.join(', ')}</span>`);
+  const icon = `<svg class="icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">`
+             + `<circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.4"/>`
+             + `<path d="M8 7.25v3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>`
+             + `<circle cx="8" cy="5.25" r="0.85" fill="currentColor"/></svg>`;
+  el.innerHTML = icon + `<div>All periods aligned to <b>calendar quarters</b> (Jan–Mar = Q1, etc.). `
+               + `${nc.length} symbols use non-calendar fiscal years — `
+               + parts.join(' &middot; ')
+               + `. Hover any value to see the original fiscal label.</div>`;
+})();
+
+// =================================================================
+// SIDEBAR DRAWER — mobile hamburger menu (no-op on desktop)
+// =================================================================
+const Sidebar = (function(){
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  const hamburger = document.getElementById('hamburger');
+  function open(){
+    sidebar.classList.add('open');
+    overlay.classList.add('open');
+    hamburger.setAttribute('aria-expanded', 'true');
+    overlay.setAttribute('aria-hidden', 'false');
+  }
+  function close(){
+    sidebar.classList.remove('open');
+    overlay.classList.remove('open');
+    hamburger.setAttribute('aria-expanded', 'false');
+    overlay.setAttribute('aria-hidden', 'true');
+  }
+  hamburger.addEventListener('click', () =>
+    sidebar.classList.contains('open') ? close() : open());
+  overlay.addEventListener('click', close);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  return { open, close };
+})();
+
+// =================================================================
+// TAB SWITCHING
+// =================================================================
 document.querySelectorAll('#tabs button').forEach(b => {
   b.addEventListener('click', () => {
     document.querySelectorAll('#tabs button').forEach(x => x.classList.remove('active'));
     document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
     document.getElementById('tab-' + b.dataset.tab).classList.add('active');
-    // On mobile, close the drawer after a tab is picked
-    closeSidebar();
+    Sidebar.close();  // close mobile drawer after picking a tab
   });
 });
-
-// ----- mobile drawer (hamburger menu) -----
-const _sidebar = document.querySelector('.sidebar');
-const _overlay = document.getElementById('sidebar-overlay');
-const _hamburger = document.getElementById('hamburger');
-function openSidebar(){
-  _sidebar.classList.add('open');
-  _overlay.classList.add('open');
-  _hamburger.setAttribute('aria-expanded', 'true');
-  _overlay.setAttribute('aria-hidden', 'false');
-}
-function closeSidebar(){
-  _sidebar.classList.remove('open');
-  _overlay.classList.remove('open');
-  _hamburger.setAttribute('aria-expanded', 'false');
-  _overlay.setAttribute('aria-hidden', 'true');
-}
-_hamburger.addEventListener('click', () => {
-  _sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
-});
-_overlay.addEventListener('click', closeSidebar);
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSidebar(); });
 
 // =================================================================
 // TAB 1: TIME SERIES
@@ -2043,7 +2067,9 @@ function rawRender(){
   });
 }
 
-// ----- boot -----
+// =================================================================
+// BOOT — initialise every tab once on page load
+// =================================================================
 tsInit();
 peerInit();
 heatInit();
