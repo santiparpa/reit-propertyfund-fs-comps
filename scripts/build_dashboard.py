@@ -1662,6 +1662,13 @@ function peerRender(){
 
   const ctx = document.getElementById('peer-chart');
   if (peerChart) peerChart.destroy();
+  // Size the chart's container to the row count so each bar gets enough
+  // vertical room for its label. With ~56 symbols the fixed 440-620px
+  // container squashes ticks into illegible overlap.
+  const wrap = ctx.parentElement;
+  const perRow = 22;
+  const minHeight = window.matchMedia('(max-width: 640px)').matches ? 280 : 420;
+  wrap.style.height = Math.max(minHeight, rows.length * perRow + 60) + 'px';
   const isPct = peerState.compare !== 'abs';
   // Always colour bars by industry — sign of % is conveyed by the bar
   // direction (negative bars extend left of zero) and by the green/red
